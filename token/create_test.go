@@ -1,34 +1,37 @@
-package usecase
+package token_test
 
 import (
 	"errors"
+	"github.com/calebmcelroy/tradelead-auth/errs"
+	"github.com/calebmcelroy/tradelead-auth/token"
+	"github.com/calebmcelroy/tradelead-auth/token/mocks"
+	"github.com/calebmcelroy/tradelead-auth/user"
+	usermocks "github.com/calebmcelroy/tradelead-auth/user/mocks"
 	"testing"
 	"time"
 
-	"github.com/calebmcelroy/tradelead-auth/core/boundary/mocks"
-	"github.com/calebmcelroy/tradelead-auth/core/entity"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
 func TestInvalidParamsErrorWhenMissingUsernamePassword(t *testing.T) {
 
-	usecase := CreateAuthToken{}
+	usecase := token.Create{}
 	_, err := usecase.Execute("", "", false)
-	assert.Equal(t, true, IsInvalidParamsError(err))
+	assert.Equal(t, true, errs.IsInvalidParamsError(err))
 
 }
 
 func TestInsertsToken(t *testing.T) {
-	userRepo := &mocks.UserRepo{}
+	userRepo := &usermocks.UserRepo{}
 
-	verifyUser := VerifyUserCreds{
+	verifyUser := user.VerifyCreds{
 		UserRepo: userRepo,
 	}
 
 	tokenRepo := &mocks.TokenRepo{}
 
-	usecase := CreateAuthToken{
+	usecase := token.Create{
 		VerifyUserCreds: verifyUser,
 		TokenRepo:       tokenRepo,
 	}
@@ -42,38 +45,38 @@ func TestInsertsToken(t *testing.T) {
 }
 
 func TestAuthenticationErrorWhenInvalidCreds(t *testing.T) {
-	userRepo := &mocks.UserRepo{}
+	userRepo := &usermocks.UserRepo{}
 
-	verifyUser := VerifyUserCreds{
+	verifyUser := user.VerifyCreds{
 		UserRepo: userRepo,
 	}
 
 	tokenRepo := &mocks.TokenRepo{}
 
-	usecase := CreateAuthToken{
+	usecase := token.Create{
 		VerifyUserCreds: verifyUser,
 		TokenRepo:       tokenRepo,
 	}
 
-	userRepo.On("Authenticate", "test", "test").Return("", NewAuthenticationError("Invalid credentials"))
+	userRepo.On("Authenticate", "test", "test").Return("", errs.NewAuthenticationError("Invalid credentials"))
 
 	_, err := usecase.Execute("test", "test", false)
 
 	tokenRepo.AssertNumberOfCalls(t, "Insert", 0)
 
-	assert.Equal(t, true, IsAuthenticationError(err))
+	assert.Equal(t, true, errs.IsAuthenticationError(err))
 }
 
 func TestReturnsWrappedErrorWhenTokenRepoInsertError(t *testing.T) {
-	userRepo := &mocks.UserRepo{}
+	userRepo := &usermocks.UserRepo{}
 
-	verifyUser := VerifyUserCreds{
+	verifyUser := user.VerifyCreds{
 		UserRepo: userRepo,
 	}
 
 	tokenRepo := &mocks.TokenRepo{}
 
-	usecase := CreateAuthToken{
+	usecase := token.Create{
 		VerifyUserCreds: verifyUser,
 		TokenRepo:       tokenRepo,
 	}
@@ -87,15 +90,15 @@ func TestReturnsWrappedErrorWhenTokenRepoInsertError(t *testing.T) {
 }
 
 func TestEmptyTokenWhenTokenRepoError(t *testing.T) {
-	userRepo := &mocks.UserRepo{}
+	userRepo := &usermocks.UserRepo{}
 
-	verifyUser := VerifyUserCreds{
+	verifyUser := user.VerifyCreds{
 		UserRepo: userRepo,
 	}
 
 	tokenRepo := &mocks.TokenRepo{}
 
-	usecase := CreateAuthToken{
+	usecase := token.Create{
 		VerifyUserCreds: verifyUser,
 		TokenRepo:       tokenRepo,
 	}
@@ -103,21 +106,21 @@ func TestEmptyTokenWhenTokenRepoError(t *testing.T) {
 	userRepo.On("Authenticate", "test", "test").Return("123", nil)
 	tokenRepo.On("Insert", mock.Anything).Return(errors.New("could not connect to db"))
 
-	token, _ := usecase.Execute("test", "test", false)
+	tok, _ := usecase.Execute("test", "test", false)
 
-	assert.Equal(t, entity.Token{}, token)
+	assert.Equal(t, token.Token{}, tok)
 }
 
 func TestForCorrectUser(t *testing.T) {
-	userRepo := &mocks.UserRepo{}
+	userRepo := &usermocks.UserRepo{}
 
-	verifyUser := VerifyUserCreds{
+	verifyUser := user.VerifyCreds{
 		UserRepo: userRepo,
 	}
 
 	tokenRepo := &mocks.TokenRepo{}
 
-	usecase := CreateAuthToken{
+	usecase := token.Create{
 		VerifyUserCreds: verifyUser,
 		TokenRepo:       tokenRepo,
 	}
@@ -125,22 +128,22 @@ func TestForCorrectUser(t *testing.T) {
 	userRepo.On("Authenticate", "test", "test").Return("123", nil)
 	tokenRepo.On("Insert", mock.Anything).Return(nil)
 
-	token, err := usecase.Execute("test", "test", false)
+	tk, err := usecase.Execute("test", "test", false)
 
 	assert.Nil(t, err)
-	assert.Equal(t, "123", token.UserID)
+	assert.Equal(t, "123", tk.UserID)
 }
 
 func TestForToken(t *testing.T) {
-	userRepo := &mocks.UserRepo{}
+	userRepo := &usermocks.UserRepo{}
 
-	verifyUser := VerifyUserCreds{
+	verifyUser := user.VerifyCreds{
 		UserRepo: userRepo,
 	}
 
 	tokenRepo := &mocks.TokenRepo{}
 
-	usecase := CreateAuthToken{
+	usecase := token.Create{
 		VerifyUserCreds: verifyUser,
 		TokenRepo:       tokenRepo,
 	}
@@ -148,22 +151,22 @@ func TestForToken(t *testing.T) {
 	userRepo.On("Authenticate", "test", "test").Return("123", nil)
 	tokenRepo.On("Insert", mock.Anything).Return(nil)
 
-	token, err := usecase.Execute("test", "test", false)
+	tk, err := usecase.Execute("test", "test", false)
 
 	assert.Nil(t, err)
-	assert.NotEmpty(t, token.Token)
+	assert.NotEmpty(t, tk.Token)
 }
 
 func TestFor1DayExp(t *testing.T) {
-	userRepo := &mocks.UserRepo{}
+	userRepo := &usermocks.UserRepo{}
 
-	verifyUser := VerifyUserCreds{
+	verifyUser := user.VerifyCreds{
 		UserRepo: userRepo,
 	}
 
 	tokenRepo := &mocks.TokenRepo{}
 
-	usecase := CreateAuthToken{
+	usecase := token.Create{
 		VerifyUserCreds: verifyUser,
 		TokenRepo:       tokenRepo,
 	}
@@ -171,22 +174,22 @@ func TestFor1DayExp(t *testing.T) {
 	userRepo.On("Authenticate", "test", "test").Return("123", nil)
 	tokenRepo.On("Insert", mock.Anything).Return(nil)
 
-	token, _ := usecase.Execute("test", "test", false)
+	tk, _ := usecase.Execute("test", "test", false)
 
 	expected := time.Now().Add(time.Hour * 24)
-	assert.Equal(t, expected.Unix(), token.Expiration.Unix())
+	assert.Equal(t, expected.Unix(), tk.Expiration.Unix())
 }
 
 func TestFor30DayExpOnRemember(t *testing.T) {
-	userRepo := &mocks.UserRepo{}
+	userRepo := &usermocks.UserRepo{}
 
-	verifyUser := VerifyUserCreds{
+	verifyUser := user.VerifyCreds{
 		UserRepo: userRepo,
 	}
 
 	tokenRepo := &mocks.TokenRepo{}
 
-	usecase := CreateAuthToken{
+	usecase := token.Create{
 		VerifyUserCreds: verifyUser,
 		TokenRepo:       tokenRepo,
 	}
@@ -194,8 +197,8 @@ func TestFor30DayExpOnRemember(t *testing.T) {
 	userRepo.On("Authenticate", "test", "test").Return("123", nil)
 	tokenRepo.On("Insert", mock.Anything).Return(nil)
 
-	token, _ := usecase.Execute("test", "test", true)
+	tk, _ := usecase.Execute("test", "test", true)
 
 	expected := time.Now().Add(time.Hour * 24 * 30)
-	assert.Equal(t, expected.Unix(), token.Expiration.Unix())
+	assert.Equal(t, expected.Unix(), tk.Expiration.Unix())
 }

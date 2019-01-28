@@ -1,4 +1,4 @@
-package usecase
+package errs
 
 import "errors"
 
@@ -42,7 +42,7 @@ func (e authenticationError) Authentication() bool {
 	return true
 }
 
-// NewAuthenticationError creates an error with
+// errs.NewAuthenticationError creates an error with
 // your msg that implements Authentication()
 func NewAuthenticationError(msg string) error {
 	return authenticationError{customError{errors.New(msg)}}

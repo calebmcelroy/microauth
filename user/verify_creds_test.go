@@ -1,17 +1,18 @@
-package usecase
+package user
 
 import (
 	"errors"
+	"github.com/calebmcelroy/tradelead-auth/errs"
+	"github.com/calebmcelroy/tradelead-auth/user/mocks"
 	"testing"
 
-	"github.com/calebmcelroy/tradelead-auth/core/boundary/mocks"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestReturnsIdFromUserRepo(t *testing.T) {
 	userRepo := &mocks.UserRepo{}
 
-	usecase := VerifyUserCreds{
+	usecase := VerifyCreds{
 		UserRepo: userRepo,
 	}
 
@@ -24,7 +25,7 @@ func TestReturnsIdFromUserRepo(t *testing.T) {
 func TestReturnsErrFromUserRepo(t *testing.T) {
 	userRepo := &mocks.UserRepo{}
 
-	usecase := VerifyUserCreds{
+	usecase := VerifyCreds{
 		UserRepo: userRepo,
 	}
 
@@ -37,18 +38,18 @@ func TestReturnsErrFromUserRepo(t *testing.T) {
 func TestReturnsAuthenticationErrFromUserRepo(t *testing.T) {
 	userRepo := &mocks.UserRepo{}
 
-	usecase := VerifyUserCreds{
+	usecase := VerifyCreds{
 		UserRepo: userRepo,
 	}
 
-	userRepo.On("Authenticate", "test", "test").Return("", NewAuthenticationError("invalid username and password"))
+	userRepo.On("Authenticate", "test", "test").Return("", errs.NewAuthenticationError("invalid username and password"))
 	_, err := usecase.Execute("test", "test")
 
-	assert.Equal(t, true, IsAuthenticationError(err))
+	assert.Equal(t, true, errs.IsAuthenticationError(err))
 }
 
 func TestVerifyUserCreds_InvalidParamsErrorWhenMissingUsernamePassword(t *testing.T) {
-	usecase := VerifyUserCreds{}
+	usecase := VerifyCreds{}
 	_, err := usecase.Execute("", "")
-	assert.Equal(t, true, IsInvalidParamsError(err))
+	assert.Equal(t, true, errs.IsInvalidParamsError(err))
 }

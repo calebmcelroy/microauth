@@ -1,4 +1,4 @@
-package boundary
+package user
 
 // UserRepo is used for storage and retrieval of user data.
 type UserRepo interface {
