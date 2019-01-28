@@ -10,4 +10,7 @@ type TokenRepo interface {
 
 	//Delete a token by string token
 	Delete(token string) error
+
+	//List retrieves all tokens for a user
+	GetByUser(userID string) ([]Token, error)
 }
