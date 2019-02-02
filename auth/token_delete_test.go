@@ -1,9 +1,8 @@
-package token_test
+package auth_test
 
 import (
-	"github.com/calebmcelroy/tradelead-auth/errs"
-	"github.com/calebmcelroy/tradelead-auth/token"
-	"github.com/calebmcelroy/tradelead-auth/token/mocks"
+	"github.com/calebmcelroy/microauth/auth"
+	"github.com/calebmcelroy/microauth/auth/mocks"
 	"github.com/pkg/errors"
 	"testing"
 	"time"
@@ -11,16 +10,16 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestDeletesTokenWhenAuthAndExists(t *testing.T) {
+func TestTokenDelete_DeletesTokenWhenAuthAndExists(t *testing.T) {
 	tokenRepo := &mocks.TokenRepo{}
 
-	deleteToken := token.Token{
+	deleteToken := auth.Token{
 		Token:      "delete",
 		UserID:     "123",
 		Expiration: time.Now().Add(time.Hour),
 	}
 
-	authToken := token.Token{
+	authToken := auth.Token{
 		Token:      "auth",
 		UserID:     "123",
 		Expiration: time.Now().Add(time.Hour),
@@ -30,42 +29,42 @@ func TestDeletesTokenWhenAuthAndExists(t *testing.T) {
 	tokenRepo.On("Get", deleteToken.Token).Return(deleteToken, nil)
 	tokenRepo.On("Get", authToken.Token).Return(authToken, nil)
 
-	usecase := token.Delete{
-		VerifyAuthToken: token.Verify{tokenRepo},
-		TokenRepo:       tokenRepo,
+	usecase := auth.TokenDelete{
+		TokenAuthenticate: auth.TokenAuthenticate{tokenRepo},
+		TokenRepo:         tokenRepo,
 	}
 
 	err := usecase.Execute(deleteToken.Token, authToken.Token)
 	assert.Nil(t, err)
 }
 
-func TestReturnAuthenticationErrorWhenAuthNotFound(t *testing.T) {
+func TestTokenDelete_ReturnAuthenticationErrorWhenAuthNotFound(t *testing.T) {
 	tokenRepo := &mocks.TokenRepo{}
 
 	deleteToken := "deleteToken"
 	authToken := "authToken"
 
-	tokenRepo.On("Get", authToken).Return(token.Token{}, nil)
+	tokenRepo.On("Get", authToken).Return(auth.Token{}, nil)
 
-	usecase := token.Delete{
-		VerifyAuthToken: token.Verify{tokenRepo},
-		TokenRepo:       tokenRepo,
+	usecase := auth.TokenDelete{
+		TokenAuthenticate: auth.TokenAuthenticate{tokenRepo},
+		TokenRepo:         tokenRepo,
 	}
 
 	e := usecase.Execute(deleteToken, authToken)
-	assert.Equal(t, true, errs.IsAuthenticationError(e))
+	assert.Equal(t, true, auth.IsAuthenticationError(e))
 }
 
-func TestAuthorizationErrorWhenAuthTokenAndDeleteTokenUserDontMatch(t *testing.T) {
+func TestTokenDelete_AuthorizationErrorWhenAuthTokenAndDeleteTokenUserDontMatch(t *testing.T) {
 	tokenRepo := &mocks.TokenRepo{}
 
-	deleteToken := token.Token{
+	deleteToken := auth.Token{
 		Token:      "delete",
 		UserID:     "123",
 		Expiration: time.Now().Add(time.Hour),
 	}
 
-	authToken := token.Token{
+	authToken := auth.Token{
 		Token:      "auth",
 		UserID:     "1234",
 		Expiration: time.Now().Add(time.Hour),
@@ -74,25 +73,25 @@ func TestAuthorizationErrorWhenAuthTokenAndDeleteTokenUserDontMatch(t *testing.T
 	tokenRepo.On("Get", deleteToken.Token).Return(deleteToken, nil)
 	tokenRepo.On("Get", authToken.Token).Return(authToken, nil)
 
-	usecase := token.Delete{
-		VerifyAuthToken: token.Verify{tokenRepo},
-		TokenRepo:       tokenRepo,
+	usecase := auth.TokenDelete{
+		TokenAuthenticate: auth.TokenAuthenticate{tokenRepo},
+		TokenRepo:         tokenRepo,
 	}
 
 	e := usecase.Execute(deleteToken.Token, authToken.Token)
-	assert.Equal(t, true, errs.IsAuthorizationError(e))
+	assert.Equal(t, true, auth.IsAuthorizationError(e))
 }
 
-func TestAuthenticationErrorWhenAuthExpired(t *testing.T) {
+func TestTokenDelete_AuthenticationErrorWhenAuthExpired(t *testing.T) {
 	tokenRepo := &mocks.TokenRepo{}
 
-	deleteToken := token.Token{
+	deleteToken := auth.Token{
 		Token:      "delete",
 		UserID:     "123",
 		Expiration: time.Now().Add(time.Hour),
 	}
 
-	authToken := token.Token{
+	authToken := auth.Token{
 		Token:      "auth",
 		UserID:     "123",
 		Expiration: time.Now().Add(-time.Hour),
@@ -101,79 +100,79 @@ func TestAuthenticationErrorWhenAuthExpired(t *testing.T) {
 	tokenRepo.On("Get", deleteToken.Token).Return(deleteToken, nil)
 	tokenRepo.On("Get", authToken.Token).Return(authToken, nil)
 
-	usecase := token.Delete{
-		VerifyAuthToken: token.Verify{tokenRepo},
-		TokenRepo:       tokenRepo,
+	usecase := auth.TokenDelete{
+		TokenAuthenticate: auth.TokenAuthenticate{tokenRepo},
+		TokenRepo:         tokenRepo,
 	}
 
 	e := usecase.Execute(deleteToken.Token, authToken.Token)
-	assert.Equal(t, true, errs.IsAuthenticationError(e))
+	assert.Equal(t, true, auth.IsAuthenticationError(e))
 }
 
-func TestNotFoundErrorWhenDeleteTokenDoesntExist(t *testing.T) {
+func TestTokenDelete_NotFoundErrorWhenDeleteTokenDoesntExist(t *testing.T) {
 	tokenRepo := &mocks.TokenRepo{}
 
-	deleteToken := token.Token{
+	deleteToken := auth.Token{
 		Token:      "delete",
 		UserID:     "123",
 		Expiration: time.Now().Add(time.Hour),
 	}
 
-	authToken := token.Token{
+	authToken := auth.Token{
 		Token:      "auth",
 		UserID:     "123",
 		Expiration: time.Now().Add(time.Hour),
 	}
 
-	tokenRepo.On("Get", deleteToken.Token).Return(token.Token{}, nil)
+	tokenRepo.On("Get", deleteToken.Token).Return(auth.Token{}, nil)
 	tokenRepo.On("Get", authToken.Token).Return(authToken, nil)
 
-	usecase := token.Delete{
-		VerifyAuthToken: token.Verify{tokenRepo},
-		TokenRepo:       tokenRepo,
+	usecase := auth.TokenDelete{
+		TokenAuthenticate: auth.TokenAuthenticate{tokenRepo},
+		TokenRepo:         tokenRepo,
 	}
 
 	e := usecase.Execute(deleteToken.Token, authToken.Token)
-	assert.Equal(t, true, errs.IsNotFoundError(e))
+	assert.Equal(t, true, auth.IsNotFoundError(e))
 }
 
-func TestWrapErrorFromTokenRepoOnDeleteGetError(t *testing.T) {
+func TestTokenDelete_WrapErrorFromTokenRepoOnDeleteGetError(t *testing.T) {
 	tokenRepo := &mocks.TokenRepo{}
 
-	deleteToken := token.Token{
+	deleteToken := auth.Token{
 		Token:      "delete",
 		UserID:     "123",
 		Expiration: time.Now().Add(time.Hour),
 	}
 
-	authToken := token.Token{
+	authToken := auth.Token{
 		Token:      "auth",
 		UserID:     "123",
 		Expiration: time.Now().Add(time.Hour),
 	}
 
-	tokenRepo.On("Get", deleteToken.Token).Return(token.Token{}, errors.New("test error"))
+	tokenRepo.On("Get", deleteToken.Token).Return(auth.Token{}, errors.New("test error"))
 	tokenRepo.On("Get", authToken.Token).Return(authToken, nil)
 
-	usecase := token.Delete{
-		VerifyAuthToken: token.Verify{tokenRepo},
-		TokenRepo:       tokenRepo,
+	usecase := auth.TokenDelete{
+		TokenAuthenticate: auth.TokenAuthenticate{tokenRepo},
+		TokenRepo:         tokenRepo,
 	}
 
 	e := usecase.Execute(deleteToken.Token, authToken.Token)
-	assert.EqualError(t, e, "retrieving delete token failed: test error")
+	assert.EqualError(t, e, "retrieving delete auth failed: test error")
 }
 
-func TestWrapErrorFromTokenRepoOnDeleteError(t *testing.T) {
+func TestTokenDelete_WrapErrorFromTokenRepoOnDeleteError(t *testing.T) {
 	tokenRepo := &mocks.TokenRepo{}
 
-	deleteToken := token.Token{
+	deleteToken := auth.Token{
 		Token:      "delete",
 		UserID:     "123",
 		Expiration: time.Now().Add(time.Hour),
 	}
 
-	authToken := token.Token{
+	authToken := auth.Token{
 		Token:      "auth",
 		UserID:     "123",
 		Expiration: time.Now().Add(time.Hour),
@@ -183,11 +182,11 @@ func TestWrapErrorFromTokenRepoOnDeleteError(t *testing.T) {
 	tokenRepo.On("Get", deleteToken.Token).Return(deleteToken, nil)
 	tokenRepo.On("Delete", deleteToken.Token).Return(errors.New("test error"))
 
-	usecase := token.Delete{
-		VerifyAuthToken: token.Verify{tokenRepo},
-		TokenRepo:       tokenRepo,
+	usecase := auth.TokenDelete{
+		TokenAuthenticate: auth.TokenAuthenticate{tokenRepo},
+		TokenRepo:         tokenRepo,
 	}
 
 	e := usecase.Execute(deleteToken.Token, authToken.Token)
-	assert.EqualError(t, e, "error deleting token: test error")
+	assert.EqualError(t, e, "error deleting auth: test error")
 }

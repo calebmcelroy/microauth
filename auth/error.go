@@ -1,4 +1,4 @@
-package errs
+package auth
 
 import "errors"
 
@@ -18,13 +18,13 @@ func (e authorizationError) Authorization() bool {
 	return true
 }
 
-// NewAuthorizationError creates an error with
+// newAuthorizationError creates an error with
 // your msg that implements Authorization()
-func NewAuthorizationError(msg string) error {
+func newAuthorizationError(msg string) error {
 	return authorizationError{customError{errors.New(msg)}}
 }
 
-// IsAuthorizationError checks if an error is an authorization error.
+// IsAuthorizationError checks if authorization error.
 // It uses behavior checking therefore is not coupled to a type
 func IsAuthorizationError(err error) bool {
 	type authorization interface {
@@ -42,14 +42,14 @@ func (e authenticationError) Authentication() bool {
 	return true
 }
 
-// errs.NewAuthenticationError creates an error with
+// errs.newAuthenticationError creates an error with
 // your msg that implements Authentication()
-func NewAuthenticationError(msg string) error {
+func newAuthenticationError(msg string) error {
 	return authenticationError{customError{errors.New(msg)}}
 }
 
-// IsAuthenticationError checks if an error is an authentication error.
-// It uses behavior checking therefore is not coupled to a type
+// IsAuthenticationError checks if authentication error.
+// Behavior checking prevents coupling to an error type.
 func IsAuthenticationError(err error) bool {
 	type authentication interface {
 		Authentication() bool
@@ -66,14 +66,14 @@ func (e notFoundError) NotFound() bool {
 	return true
 }
 
-// NewNotFoundError creates an error with
+// newNotFoundError creates an error with
 // your msg that implements NotFound()
-func NewNotFoundError(msg string) error {
+func newNotFoundError(msg string) error {
 	return notFoundError{customError{errors.New(msg)}}
 }
 
-// IsNotFoundError checks if an error is a not found error.
-// It uses behavior checking therefore is not coupled to a type
+// IsNotFoundError checks if whatever you requested could not be found.
+// Behavior checking prevents coupling to an error type.
 func IsNotFoundError(err error) bool {
 	type notFound interface {
 		NotFound() bool
@@ -90,14 +90,14 @@ func (e invalidParamsError) InvalidParams() bool {
 	return true
 }
 
-// NewInvalidParamsError creates an error with
+// newInvalidParamsError creates an error with
 // your msg that implements InvalidParams()
-func NewInvalidParamsError(msg string) error {
+func newInvalidParamsError(msg string) error {
 	return invalidParamsError{customError{errors.New(msg)}}
 }
 
-// IsInvalidParamsError checks if an error is an error in the params passed to a use case.
-// It uses behavior checking therefore is not coupled to a type
+// IsInvalidParamsError checks if error with the parameters used.
+// Behavior checking prevents coupling to an error type.
 func IsInvalidParamsError(err error) bool {
 	type invalidParams interface {
 		InvalidParams() bool

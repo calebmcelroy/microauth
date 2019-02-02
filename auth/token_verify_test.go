@@ -1,24 +1,23 @@
-package token_test
+package auth_test
 
 import (
 	"errors"
-	"github.com/calebmcelroy/tradelead-auth/errs"
-	"github.com/calebmcelroy/tradelead-auth/token"
-	"github.com/calebmcelroy/tradelead-auth/token/mocks"
+	"github.com/calebmcelroy/microauth/auth"
+	"github.com/calebmcelroy/microauth/auth/mocks"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestTrueIfExistsAndNotExpired(t *testing.T) {
+func TestTokenVerify_TrueIfExistsAndNotExpired(t *testing.T) {
 	tr := &mocks.TokenRepo{}
 
-	usecase := token.Verify{
+	usecase := auth.TokenAuthenticate{
 		TokenRepo: tr,
 	}
 
-	tk := token.Token{
+	tk := auth.Token{
 		Token:      "123456789",
 		UserID:     "123",
 		Expiration: time.Now().Add(time.Hour),
@@ -31,14 +30,14 @@ func TestTrueIfExistsAndNotExpired(t *testing.T) {
 	assert.Equal(t, "123", userID)
 }
 
-func TestFalseIfExpired(t *testing.T) {
+func TestTokenVerify_FalseIfExpired(t *testing.T) {
 	tr := &mocks.TokenRepo{}
 
-	usecase := token.Verify{
+	usecase := auth.TokenAuthenticate{
 		TokenRepo: tr,
 	}
 
-	tk := token.Token{
+	tk := auth.Token{
 		Token:      "123456789",
 		UserID:     "123",
 		Expiration: time.Now().Add(-time.Hour),
@@ -48,36 +47,36 @@ func TestFalseIfExpired(t *testing.T) {
 	userID, err := usecase.Execute("123456789")
 
 	assert.Equal(t, "", userID)
-	assert.Equal(t, true, errs.IsAuthenticationError(err))
+	assert.Equal(t, true, auth.IsAuthenticationError(err))
 }
 
-func TestFalseWhenNotFound(t *testing.T) {
+func TestTokenVerify_FalseWhenNotFound(t *testing.T) {
 	tr := &mocks.TokenRepo{}
 
-	usecase := token.Verify{
+	usecase := auth.TokenAuthenticate{
 		TokenRepo: tr,
 	}
 
-	tk := token.Token{}
+	tk := auth.Token{}
 	tr.On("Get", "123456789").Return(tk, nil)
 
 	userID, err := usecase.Execute("123456789")
 
 	assert.Equal(t, "", userID)
-	assert.Equal(t, true, errs.IsAuthenticationError(err))
+	assert.Equal(t, true, auth.IsAuthenticationError(err))
 }
 
-func TestReturnsWrapErrorFromTokenRepo(t *testing.T) {
+func TestTokenVerify_ReturnsWrapErrorFromTokenRepo(t *testing.T) {
 	tr := &mocks.TokenRepo{}
 
-	usecase := token.Verify{
+	usecase := auth.TokenAuthenticate{
 		TokenRepo: tr,
 	}
 
 	returnedErr := errors.New("test error")
-	tr.On("Get", "123456789").Return(token.Token{}, returnedErr)
+	tr.On("Get", "123456789").Return(auth.Token{}, returnedErr)
 
 	_, err := usecase.Execute("123456789")
 
-	assert.Equal(t, err.Error(), "failed getting token: test error")
+	assert.Equal(t, err.Error(), "failed getting auth: test error")
 }

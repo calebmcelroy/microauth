@@ -1,17 +1,16 @@
-package token_test
+package auth_test
 
 import (
-	"github.com/calebmcelroy/tradelead-auth/errs"
-	"github.com/calebmcelroy/tradelead-auth/token"
-	"github.com/calebmcelroy/tradelead-auth/token/mocks"
+	"github.com/calebmcelroy/microauth/auth"
+	"github.com/calebmcelroy/microauth/auth/mocks"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
 )
 
-func TestListByUser_ReturnsTokensFromRepo(t *testing.T) {
-	tokens := []token.Token{
+func TestGetUserTokens_ReturnsTokensFromRepo(t *testing.T) {
+	tokens := []auth.Token{
 		{Token: "123", UserID: "123"},
 		{Token: "234", UserID: "123"},
 		{Token: "345", UserID: "123"},
@@ -22,7 +21,7 @@ func TestListByUser_ReturnsTokensFromRepo(t *testing.T) {
 	userID := "123"
 
 	tr := &mocks.TokenRepo{}
-	tk := token.Token{
+	tk := auth.Token{
 		Token:      authToken,
 		UserID:     userID,
 		Expiration: time.Now().Add(time.Hour),
@@ -30,43 +29,43 @@ func TestListByUser_ReturnsTokensFromRepo(t *testing.T) {
 	tr.On("Get", authToken).Return(tk, nil)
 	tr.On("GetByUser", userID).Return(tokens, nil)
 
-	usecase := token.ListByUser{
-		TokenRepo:   tr,
-		VerifyToken: token.Verify{TokenRepo: tr},
+	usecase := auth.GetUserTokens{
+		TokenRepo:         tr,
+		TokenAuthenticate: auth.TokenAuthenticate{TokenRepo: tr},
 	}
 
 	tokens2, _ := usecase.Execute(authToken)
 	assert.Equal(t, tokens, tokens2)
 }
 
-func TestListByUser_AuthenticationErrorWhenAuthTokenInvalid(t *testing.T) {
+func TestGetUserTokens_AuthenticationErrorWhenAuthTokenInvalid(t *testing.T) {
 	authToken := "authToken"
 
 	tr := &mocks.TokenRepo{}
-	tr.On("Get", authToken).Return(token.Token{}, nil)
+	tr.On("Get", authToken).Return(auth.Token{}, nil)
 
-	usecase := token.ListByUser{
-		TokenRepo:   tr,
-		VerifyToken: token.Verify{TokenRepo: tr},
+	usecase := auth.GetUserTokens{
+		TokenRepo:         tr,
+		TokenAuthenticate: auth.TokenAuthenticate{TokenRepo: tr},
 	}
 
 	_, err := usecase.Execute(authToken)
-	assert.Equal(t, true, errs.IsAuthenticationError(err))
+	assert.Equal(t, true, auth.IsAuthenticationError(err))
 }
 
-func TestListByUser_InvalidParamsErrorWhenMissingAuthToken(t *testing.T) {
-	usecase := token.ListByUser{}
+func TestGetUserTokens_InvalidParamsErrorWhenMissingAuthToken(t *testing.T) {
+	usecase := auth.GetUserTokens{}
 
 	_, err := usecase.Execute("")
-	assert.Equal(t, true, errs.IsAuthenticationError(err))
+	assert.Equal(t, true, auth.IsAuthenticationError(err))
 }
 
-func TestListByUser_WrapsErrorFromTokenRepo(t *testing.T) {
+func TestGetUserTokens_WrapsErrorFromTokenRepo(t *testing.T) {
 	authToken := "authToken"
 	userID := "123"
 
 	tr := &mocks.TokenRepo{}
-	tk := token.Token{
+	tk := auth.Token{
 		Token:      authToken,
 		UserID:     userID,
 		Expiration: time.Now().Add(time.Hour),
@@ -74,9 +73,9 @@ func TestListByUser_WrapsErrorFromTokenRepo(t *testing.T) {
 	tr.On("Get", authToken).Return(tk, nil)
 	tr.On("GetByUser", userID).Return(nil, errors.New("test error"))
 
-	usecase := token.ListByUser{
-		TokenRepo:   tr,
-		VerifyToken: token.Verify{TokenRepo: tr},
+	usecase := auth.GetUserTokens{
+		TokenRepo:         tr,
+		TokenAuthenticate: auth.TokenAuthenticate{TokenRepo: tr},
 	}
 
 	_, err := usecase.Execute("authToken")
