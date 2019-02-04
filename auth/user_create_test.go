@@ -18,56 +18,56 @@ func createUserObject() auth.User {
 	}
 }
 
-func TestUserCreate_InvalidParamsWhenUserMissingEmail(t *testing.T) {
+func TestUserCreate_BadRequestWhenUserMissingEmail(t *testing.T) {
 	usecase := auth.UserCreate{}
 
 	u := createUserObject()
 	u.Email = ""
 	_, err := usecase.Execute(u, "password", "")
-	assert.Equal(t, true, auth.IsInvalidParamsError(err))
+	assert.Equal(t, true, auth.IsBadRequestError(err))
 }
 
-func TestUserCreate_InvalidParamsWhenUserMissingUsername(t *testing.T) {
+func TestUserCreate_BadRequestWhenUserMissingUsername(t *testing.T) {
 	usecase := auth.UserCreate{}
 
 	u := createUserObject()
 	u.Username = ""
 	_, err := usecase.Execute(u, "password", "")
-	assert.Equal(t, true, auth.IsInvalidParamsError(err))
+	assert.Equal(t, true, auth.IsBadRequestError(err))
 }
 
-func TestUserCreate_InvalidParamsWhenUserMissingRole(t *testing.T) {
+func TestUserCreate_BadRequestWhenUserMissingRole(t *testing.T) {
 	usecase := auth.UserCreate{}
 
 	u := createUserObject()
 	u.Roles = nil
 	_, err := usecase.Execute(u, "password", "")
-	assert.Equal(t, true, auth.IsInvalidParamsError(err))
+	assert.Equal(t, true, auth.IsBadRequestError(err))
 }
 
-func TestUserCreate_InvalidParamsWhenEmailInvalid(t *testing.T) {
+func TestUserCreate_BadRequestWhenEmailInvalid(t *testing.T) {
 	usecase := auth.UserCreate{}
 
 	u := createUserObject()
 	u.Email = "invalidemail"
 	_, err := usecase.Execute(u, "password", "")
-	assert.Equal(t, true, auth.IsInvalidParamsError(err))
+	assert.Equal(t, true, auth.IsBadRequestError(err))
 }
 
-func TestUserCreate_InvalidParamsWhenUsernameInvalid(t *testing.T) {
-	vd := &mocks.Validator{}
-	vd.On("Validate", mock.AnythingOfType("string")).Return(errors.New("test error"))
+func TestUserCreate_BadRequestWhenUsernameInvalid(t *testing.T) {
+	usernameValidator := &mocks.Validator{}
+	usernameValidator.On("Validate", mock.AnythingOfType("string")).Return(errors.New("test error"))
 
 	usecase := auth.UserCreate{
-		UsernameValidator: vd,
+		UsernameValidator: usernameValidator,
 	}
 
 	u := createUserObject()
 	_, err := usecase.Execute(u, "password", "")
-	assert.Equal(t, true, auth.IsInvalidParamsError(err))
+	assert.Equal(t, true, auth.IsBadRequestError(err))
 }
 
-func TestUserCreate_InvalidParamsWhenPasswordInvalid(t *testing.T) {
+func TestUserCreate_BadRequestWhenPasswordInvalid(t *testing.T) {
 	userValidator := &mocks.Validator{}
 	userValidator.On("Validate", mock.AnythingOfType("string")).Return(nil)
 
@@ -81,17 +81,17 @@ func TestUserCreate_InvalidParamsWhenPasswordInvalid(t *testing.T) {
 
 	u := createUserObject()
 	_, err := usecase.Execute(u, "password", "")
-	assert.Equal(t, true, auth.IsInvalidParamsError(err))
+	assert.Equal(t, true, auth.IsBadRequestError(err))
 }
 
 func TestUserCreate_AnonymousReturnAuthorizationErrorWhenCreateWithRoleNotOpen(t *testing.T) {
-	uV := &mocks.Validator{}
-	uV.On("Validate", mock.AnythingOfType("string")).Return(nil)
+	usernameValidator := &mocks.Validator{}
+	usernameValidator.On("Validate", mock.AnythingOfType("string")).Return(nil)
 
-	pV := &mocks.Validator{}
-	pV.On("Validate", mock.AnythingOfType("string")).Return(nil)
+	passwordValidator := &mocks.Validator{}
+	passwordValidator.On("Validate", mock.AnythingOfType("string")).Return(nil)
 
-	rcs := []auth.RoleConfig{
+	roleConfigs := []auth.RoleConfig{
 		{
 			Name: "test",
 			Open: false,
@@ -99,9 +99,9 @@ func TestUserCreate_AnonymousReturnAuthorizationErrorWhenCreateWithRoleNotOpen(t
 	}
 
 	usecase := auth.UserCreate{
-		UsernameValidator: uV,
-		PasswordValidator: pV,
-		RoleConfigs:       rcs,
+		UsernameValidator: usernameValidator,
+		PasswordValidator: passwordValidator,
+		RoleConfigs:       roleConfigs,
 	}
 
 	u := createUserObject()
@@ -110,14 +110,14 @@ func TestUserCreate_AnonymousReturnAuthorizationErrorWhenCreateWithRoleNotOpen(t
 }
 
 func TestUserCreate_AuthorizationErrorWhenAuthUserCannotCreateRoleInNewUser(t *testing.T) {
-	uV := &mocks.Validator{}
-	uV.On("Validate", mock.AnythingOfType("string")).Return(nil)
+	usernameValidator := &mocks.Validator{}
+	usernameValidator.On("Validate", mock.AnythingOfType("string")).Return(nil)
 
-	pV := &mocks.Validator{}
-	pV.On("Validate", mock.AnythingOfType("string")).Return(nil)
+	passwordValidator := &mocks.Validator{}
+	passwordValidator.On("Validate", mock.AnythingOfType("string")).Return(nil)
 
 	roleSlug := "test"
-	rcs := []auth.RoleConfig{
+	roleConfigs := []auth.RoleConfig{
 		{
 			Name: "Test",
 			Slug: roleSlug,
@@ -131,37 +131,203 @@ func TestUserCreate_AuthorizationErrorWhenAuthUserCannotCreateRoleInNewUser(t *t
 	authToken := "authToken"
 	userID := "userID"
 
-	tR := &mocks.TokenRepo{}
+	tokRepo := &mocks.TokenRepo{}
 	tok := auth.Token{
 		Token:      authToken,
 		UserID:     userID,
 		Expiration: time.Now().Add(time.Hour),
 	}
-	tR.On("Get", authToken).Return(tok, nil)
+	tokRepo.On("Get", authToken).Return(tok, nil)
 
-	tV := auth.TokenAuthenticate{
-		TokenRepo: tR,
+	tokAuth := auth.TokenAuthenticate{
+		TokenRepo: tokRepo,
 	}
 
-	uR := &mocks.UserRepo{}
+	userRepo := &mocks.UserRepo{}
 	user := auth.User{
 		UUID:     userID,
 		Email:    "test@test.com",
 		Username: "test",
 		Roles:    []string{roleSlug},
 	}
-	uR.On("Get", userID).Return(user, nil)
+	userRepo.On("Get", userID).Return(user, nil)
 
 	usecase := auth.UserCreate{
-		UsernameValidator: uV,
-		PasswordValidator: pV,
-		RoleConfigs:       rcs,
-		TokenAuthenticate: tV,
-		UserRepo:          uR,
+		UsernameValidator: usernameValidator,
+		PasswordValidator: passwordValidator,
+		RoleConfigs:       roleConfigs,
+		TokenAuthenticate: tokAuth,
+		UserRepo:          userRepo,
 	}
 
 	u := createUserObject()
 	u.Roles = append(u.Roles, "test")
 	_, err := usecase.Execute(u, "password", authToken)
 	assert.Equal(t, true, auth.IsAuthorizationError(err))
+}
+
+func TestUserCreate_WrapUserInsertError(t *testing.T) {
+	usernameValidator := &mocks.Validator{}
+	usernameValidator.On("Validate", mock.AnythingOfType("string")).Return(nil)
+
+	passwordValidator := &mocks.Validator{}
+	passwordValidator.On("Validate", mock.AnythingOfType("string")).Return(nil)
+
+	roleSlug := "test"
+	roleConfigs := []auth.RoleConfig{
+		{
+			Name: "Test",
+			Slug: roleSlug,
+			Open: true,
+			CanCreateUser: func(newUser auth.User, u auth.User) bool {
+				return true
+			},
+		},
+	}
+
+	authToken := "authToken"
+	userID := "userID"
+
+	tokRepo := &mocks.TokenRepo{}
+	tok := auth.Token{
+		Token:      authToken,
+		UserID:     userID,
+		Expiration: time.Now().Add(time.Hour),
+	}
+	tokRepo.On("Get", authToken).Return(tok, nil)
+
+	tokAuth := auth.TokenAuthenticate{
+		TokenRepo: tokRepo,
+	}
+
+	userRepo := &mocks.UserRepo{}
+	user := auth.User{
+		UUID:     userID,
+		Email:    "test@test.com",
+		Username: "test",
+		Roles:    []string{roleSlug},
+	}
+	userRepo.On("Get", userID).Return(user, nil)
+	userRepo.On("Insert", mock.Anything).Return(errors.New("test error"))
+
+	usecase := auth.UserCreate{
+		UsernameValidator: usernameValidator,
+		PasswordValidator: passwordValidator,
+		RoleConfigs:       roleConfigs,
+		TokenAuthenticate: tokAuth,
+		UserRepo:          userRepo,
+	}
+
+	u := createUserObject()
+	u.Roles = append(u.Roles, "test")
+
+	ID, err := usecase.Execute(u, "password", authToken)
+
+	assert.Equal(t, true, ID == "")
+	assert.Equal(t, "test error", errors.Cause(err).Error())
+}
+
+func TestUserCreate_AuthUserCanCreateRoleInNewUser(t *testing.T) {
+	usernameValidator := &mocks.Validator{}
+	usernameValidator.On("Validate", mock.AnythingOfType("string")).Return(nil)
+
+	passwordValidator := &mocks.Validator{}
+	passwordValidator.On("Validate", mock.AnythingOfType("string")).Return(nil)
+
+	roleSlug := "test"
+	roleConfigs := []auth.RoleConfig{
+		{
+			Name: "Test",
+			Slug: roleSlug,
+			Open: false,
+			CanCreateUser: func(newUser auth.User, u auth.User) bool {
+				return true
+			},
+		},
+	}
+
+	authToken := "authToken"
+	userID := "userID"
+
+	tokRepo := &mocks.TokenRepo{}
+	tok := auth.Token{
+		Token:      authToken,
+		UserID:     userID,
+		Expiration: time.Now().Add(time.Hour),
+	}
+	tokRepo.On("Get", authToken).Return(tok, nil)
+
+	tokAuth := auth.TokenAuthenticate{
+		TokenRepo: tokRepo,
+	}
+
+	userRepo := &mocks.UserRepo{}
+	user := auth.User{
+		UUID:     userID,
+		Email:    "test@test.com",
+		Username: "test",
+		Roles:    []string{roleSlug},
+	}
+	userRepo.On("Get", userID).Return(user, nil)
+	userRepo.On("Insert", mock.Anything).Return(nil)
+
+	usecase := auth.UserCreate{
+		UsernameValidator: usernameValidator,
+		PasswordValidator: passwordValidator,
+		RoleConfigs:       roleConfigs,
+		TokenAuthenticate: tokAuth,
+		UserRepo:          userRepo,
+	}
+
+	u := createUserObject()
+	u.Roles = append(u.Roles, "test")
+
+	ID, err := usecase.Execute(u, "password", authToken)
+	assert.NotEqual(t, "", ID)
+	assert.Nil(t, err)
+}
+
+func TestUserCreate_AnonymousUserCanCreateOpenRoleUser(t *testing.T) {
+	usernameValidator := &mocks.Validator{}
+	usernameValidator.On("Validate", mock.AnythingOfType("string")).Return(nil)
+
+	passwordValidator := &mocks.Validator{}
+	passwordValidator.On("Validate", mock.AnythingOfType("string")).Return(nil)
+
+	roleSlug := "test"
+	roleConfigs := []auth.RoleConfig{
+		{
+			Name: "Test",
+			Slug: roleSlug,
+			Open: true,
+			CanCreateUser: func(newUser auth.User, u auth.User) bool {
+				return false
+			},
+		},
+	}
+
+	tokRepo := &mocks.TokenRepo{}
+
+	tokAuth := auth.TokenAuthenticate{
+		TokenRepo: tokRepo,
+	}
+
+	userRepo := &mocks.UserRepo{}
+	userRepo.On("Insert", mock.Anything).Return(nil)
+
+	usecase := auth.UserCreate{
+		UsernameValidator: usernameValidator,
+		PasswordValidator: passwordValidator,
+		RoleConfigs:       roleConfigs,
+		TokenAuthenticate: tokAuth,
+		UserRepo:          userRepo,
+	}
+
+	u := createUserObject()
+	u.Roles = []string{roleSlug}
+
+	ID, err := usecase.Execute(u, "password", "")
+
+	assert.NotEqual(t, "", ID)
+	assert.Nil(t, err)
 }

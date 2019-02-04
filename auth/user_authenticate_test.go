@@ -46,8 +46,8 @@ func TestUserAuthenticate_ReturnsErrFromUserRepo(t *testing.T) {
 	assert.EqualError(t, err, "failed getting user: could not connect to database")
 }
 
-func TestUserAuthenticate_VerifyUserCreds_InvalidParamsErrorWhenMissingUsernamePassword(t *testing.T) {
+func TestUserAuthenticate_VerifyUserCreds_BadRequestErrorWhenMissingUsernamePassword(t *testing.T) {
 	usecase := auth.UserAuthenticate{}
 	_, err := usecase.Execute("", "")
-	assert.Equal(t, true, auth.IsInvalidParamsError(err))
+	assert.Equal(t, true, auth.IsBadRequestError(err))
 }

@@ -53,7 +53,7 @@ func TestGetUserTokens_AuthenticationErrorWhenAuthTokenInvalid(t *testing.T) {
 	assert.Equal(t, true, auth.IsAuthenticationError(err))
 }
 
-func TestGetUserTokens_InvalidParamsErrorWhenMissingAuthToken(t *testing.T) {
+func TestGetUserTokens_BadRequestErrorWhenMissingAuthToken(t *testing.T) {
 	usecase := auth.GetUserTokens{}
 
 	_, err := usecase.Execute("")

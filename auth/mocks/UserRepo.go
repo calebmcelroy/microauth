@@ -10,20 +10,20 @@ type UserRepo struct {
 	mock.Mock
 }
 
-// Get provides a mock function with given fields: userID
-func (_m *UserRepo) Get(userID string) (auth.User, error) {
-	ret := _m.Called(userID)
+// Get provides a mock function with given fields: UUID
+func (_m *UserRepo) Get(UUID string) (auth.User, error) {
+	ret := _m.Called(UUID)
 
 	var r0 auth.User
 	if rf, ok := ret.Get(0).(func(string) auth.User); ok {
-		r0 = rf(userID)
+		r0 = rf(UUID)
 	} else {
 		r0 = ret.Get(0).(auth.User)
 	}
 
 	var r1 error
 	if rf, ok := ret.Get(1).(func(string) error); ok {
-		r1 = rf(userID)
+		r1 = rf(UUID)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -50,4 +50,32 @@ func (_m *UserRepo) GetByUsername(username string) (auth.User, error) {
 	}
 
 	return r0, r1
+}
+
+// Insert provides a mock function with given fields: _a0
+func (_m *UserRepo) Insert(_a0 auth.User) error {
+	ret := _m.Called(_a0)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(auth.User) error); ok {
+		r0 = rf(_a0)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// Update provides a mock function with given fields: _a0
+func (_m *UserRepo) Update(_a0 auth.User) error {
+	ret := _m.Called(_a0)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(auth.User) error); ok {
+		r0 = rf(_a0)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
 }

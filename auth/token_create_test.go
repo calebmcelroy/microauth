@@ -11,11 +11,11 @@ import (
 	"time"
 )
 
-func TestTokenCreate_InvalidParamsErrorWhenMissingUsernamePassword(t *testing.T) {
+func TestTokenCreate_BadRequestErrorWhenMissingUsernamePassword(t *testing.T) {
 
 	usecase := auth.TokenCreate{}
 	_, err := usecase.Execute("", "", false)
-	assert.Equal(t, true, auth.IsInvalidParamsError(err))
+	assert.Equal(t, true, auth.IsBadRequestError(err))
 
 }
 

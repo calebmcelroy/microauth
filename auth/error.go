@@ -82,26 +82,26 @@ func IsNotFoundError(err error) bool {
 	return ok && e.NotFound()
 }
 
-type invalidParamsError struct {
+type badRequestError struct {
 	customError
 }
 
-func (e invalidParamsError) InvalidParams() bool {
+func (e badRequestError) BadRequest() bool {
 	return true
 }
 
-// newInvalidParamsError creates an error with
-// your msg that implements InvalidParams()
-func newInvalidParamsError(msg string) error {
-	return invalidParamsError{customError{errors.New(msg)}}
+// newBadRequestError creates an error with
+// your msg that implements BadRequest()
+func newBadRequestError(msg string) error {
+	return badRequestError{customError{errors.New(msg)}}
 }
 
-// IsInvalidParamsError checks if error with the parameters used.
+// IsBadRequestError checks if error with the parameters used.
 // Behavior checking prevents coupling to an error type.
-func IsInvalidParamsError(err error) bool {
-	type invalidParams interface {
-		InvalidParams() bool
+func IsBadRequestError(err error) bool {
+	type badRequest interface {
+		BadRequest() bool
 	}
-	e, ok := err.(invalidParams)
-	return ok && e.InvalidParams()
+	e, ok := err.(badRequest)
+	return ok && e.BadRequest()
 }

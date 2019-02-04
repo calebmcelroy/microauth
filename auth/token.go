@@ -6,39 +6,39 @@ import (
 	"time"
 )
 
-//Token is an authentication auth that is used to
-//authenticate used without username and password
+// Token is an authentication auth that is used to
+// authenticate used without username and password
 type Token struct {
 	Token      string
 	UserID     string
 	Expiration time.Time
 }
 
-//TokenRepo is used for storage and retrieval of tokens.
+// TokenRepo is used for storage and retrieval of tokens.
 type TokenRepo interface {
-	//Save a auth
+	// Insert an auth token
 	Insert(Token) error
 
-	//Get a auth by string auth
+	// Get an auth token by string token
 	Get(token string) (Token, error)
 
-	//TokenDelete a auth by string auth
+	// Delete an auth token
 	Delete(token string) error
 
-	//List retrieves all tokens for a user
+	// GetByUser retrieves all tokens for a user
 	GetByUser(userID string) ([]Token, error)
 }
 
-//TokenCreate usecase is used to create a auth for a user
+// TokenCreate usecase is used to create a auth for a user
 type TokenCreate struct {
 	UserAuthenticate UserAuthenticate
 	TokenRepo        TokenRepo
 }
 
-//Execute is used to run the usecase
+// Execute is used to run the usecase
 func (u TokenCreate) Execute(username string, password string, remember bool) (token Token, err error) {
 	if username == "" || password == "" {
-		return Token{}, newInvalidParamsError("Username and password are required")
+		return Token{}, newBadRequestError("Username and password are required")
 	}
 
 	userID, credsErr := u.UserAuthenticate.Execute(username, password)
@@ -66,15 +66,15 @@ func (u TokenCreate) Execute(username string, password string, remember bool) (t
 	return t, nil
 }
 
-//TokenDelete is used to delete a user auth auth if a user auth auth is passed
+// TokenDelete is used to delete a user auth auth if a user auth auth is passed
 type TokenDelete struct {
 	TokenAuthenticate TokenAuthenticate
 	TokenRepo         TokenRepo
 }
 
-//Execute runs nil if the "deleteToken" param was successfully deleted.
-//Otherwise it returns a error. err.Authentication() if not authenticated.
-//err.Authorization() if not authorized to delete auth.
+// Execute returns nil if the "deleteToken" param was successfully deleted.
+// Otherwise it returns a error. err.Authentication() if not authenticated.
+// err.Authorization() if not authorized to delete auth.
 func (u TokenDelete) Execute(deleteToken string, authToken string) error {
 	userID, err := u.TokenAuthenticate.Execute(authToken)
 
@@ -100,11 +100,15 @@ func (u TokenDelete) Execute(deleteToken string, authToken string) error {
 	return err
 }
 
+// GetUserTokens is used to retrieve a user's tokens
 type GetUserTokens struct {
 	TokenRepo         TokenRepo
 	TokenAuthenticate TokenAuthenticate
 }
 
+// GetUserTokens returns []Token if authenticated.
+// An authorization error is returned if authToken invalid.
+// Otherwise error represents internal error.
 func (u GetUserTokens) Execute(authToken string) ([]Token, error) {
 	if authToken == "" {
 		return nil, newAuthenticationError("missing auth auth")
@@ -119,12 +123,12 @@ func (u GetUserTokens) Execute(authToken string) ([]Token, error) {
 	return tokens, errors.Wrap(err, "failed getting tokens")
 }
 
-//TokenAuthenticate is used to verify whether a auth is valid or not and get the current user
+// TokenAuthenticate is used to verify if authToken is valid and gets the current user
 type TokenAuthenticate struct {
 	TokenRepo TokenRepo
 }
 
-//Execute returns userID if success or 0 if invalid.
+// Execute returns userID if success. Returns authentication error if invalid.
 func (u TokenAuthenticate) Execute(token string) (userID string, error error) {
 	t, err := u.TokenRepo.Get(token)
 
