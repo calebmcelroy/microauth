@@ -26,56 +26,6 @@ type User struct {
 	Version uint
 }
 
-// UserRepo is used for storage and retrieval of user data.
-type UserRepo interface {
-	Get(UUID string) (user User, err error)
-	GetByUsername(username string) (user User, err error)
-
-	// Insert is used to add a user.
-	// Will return error that implements BadRequest() upon Email or Username exists conflict.
-	Insert(User) (error error)
-
-	// Update is used to update a user. Update increments the version on every update.
-	// Will return error that implements BadRequest() upon Version conflict.
-	Update(User) error
-}
-
-// Hasher simple interface for Hash method
-type Hasher interface {
-	//Hash a string
-	Hash(string) string
-}
-
-// RoleConfig is used to define a role, including it's name, slug, & capabilities
-type RoleConfig struct {
-	// Name is for displaying purposes
-	Name string
-
-	// Slug is used as the identifier for a role and must be unique
-	Slug string
-
-	// Open defines whether anyone can register without authentication or authorization
-	Open bool
-
-	// CanCreateUser is used to validate whether an authenticated user
-	// is allowed to create a new user with this role
-	CanCreateUser func(newUser User, u User) bool
-
-	// CanAssignUserRole is used to validate whether an authenticated user
-	// is allowed to assign this role to a particular user
-	CanAssignUserRole func(targetUser User, u User) bool
-
-	// CanRemoveUserRole is used to validate whether an authenticated user
-	// is allowed to remove this role from a particular user
-	CanRemoveUserRole func(targetUser User, u User) bool
-
-	// CanGetOtherUserInfo is used to validate whether an authenticated user
-	// is allowed to GetInfo from another user with this role
-	// if the user has multiple roles this func is ran for each role
-	// checking if any returns true
-	CanGetOtherUserInfo func(targetUser User, u User) bool
-}
-
 // UserCreate creates a user.
 type UserCreate struct {
 	UsernameValidator Validator
@@ -393,6 +343,120 @@ func (usecase *getUserAndAuthUser) Execute(username string, authToken string) (u
 	}
 
 	return u, authUser, nil
+}
+
+// UserChangePassword changes a user's password
+type UserChangePassword struct {
+	UserRepo          UserRepo
+	TokenAuthenticate TokenAuthenticate
+	RoleConfigs       []RoleConfig
+	PasswordValidator Validator
+	PasswordHasher    Hasher
+}
+
+// Execute returns a nil error on success. Parameters username, newPassword, authToken, & authUserPassword are required.
+// Returns error implementing Authorization() when auth failed or all the authenticated user's roles CanEditUserRole func return false.
+// Returns error implementing BadRequest() when user doesn't exist.
+func (usecase *UserChangePassword) Execute(username string, newPassword string, authToken string, authUserPassword string) error {
+	if username == "" {
+		return newBadRequestError("Username is required")
+	}
+
+	getUsers := getUserAndAuthUser{
+		UserRepo:          usecase.UserRepo,
+		TokenAuthenticate: usecase.TokenAuthenticate,
+		RoleConfigs:       usecase.RoleConfigs,
+	}
+
+	u, authUser, err := getUsers.Execute(username, authToken)
+
+	if err != nil {
+		return err
+	}
+
+	if authUser.PasswordHash != usecase.PasswordHasher.Hash(authUserPassword) {
+		return newAuthenticationError("invalid password")
+	}
+
+	canEdit := false
+
+	if u.UUID == authUser.UUID {
+		canEdit = true
+	} else {
+		for _, r := range authUser.Roles {
+			c := getRoleConfig(usecase.RoleConfigs, r)
+			if c.CanEditUser(u, authUser) {
+				canEdit = true
+				break
+			}
+		}
+	}
+
+	if !canEdit {
+		return newAuthorizationError("cannot edit user")
+	}
+
+	err = usecase.PasswordValidator.Validate(newPassword)
+	if err != nil {
+		return errors.Wrap(err, "new password invalid")
+	}
+
+	u.PasswordHash = usecase.PasswordHasher.Hash(newPassword)
+	return errors.Wrap(usecase.UserRepo.Update(u), "failed updating user")
+}
+
+// UserRepo is used for storage and retrieval of user data.
+type UserRepo interface {
+	Get(UUID string) (user User, err error)
+	GetByUsername(username string) (user User, err error)
+
+	// Insert is used to add a user.
+	// Will return error that implements BadRequest() upon Email or Username exists conflict.
+	Insert(User) (error error)
+
+	// Update is used to update a user. Update increments the version on every update.
+	// Will return error that implements BadRequest() upon Version conflict.
+	Update(User) error
+}
+
+// RoleConfig is used to define a role, including it's name, slug, & capabilities
+type RoleConfig struct {
+	// Name is for displaying purposes
+	Name string
+
+	// Slug is used as the identifier for a role and must be unique
+	Slug string
+
+	// Open defines whether anyone can register without authentication or authorization
+	Open bool
+
+	// CanCreateUser is used to validate whether an authenticated user
+	// is allowed to create a new user with this role
+	CanCreateUser func(newUser User, u User) bool
+
+	// CanAssignUserRole is used to validate whether an authenticated user
+	// is allowed to assign this role to a particular user
+	CanAssignUserRole func(targetUser User, u User) bool
+
+	// CanRemoveUserRole is used to validate whether an authenticated user
+	// is allowed to remove this role from a particular user
+	CanRemoveUserRole func(targetUser User, u User) bool
+
+	// CanEditUser validates whether an authenticated user is allowed to edit a particular user.
+	// This validates for UserChangePassword, UserChangeUsername, & UserChangeEmail.
+	CanEditUser func(targetUser User, u User) bool
+
+	// CanGetOtherUserInfo is used to validate whether an authenticated user
+	// is allowed to GetInfo from another user with this role
+	// if the user has multiple roles this func is ran for each role
+	// checking if any returns true
+	CanGetOtherUserInfo func(targetUser User, u User) bool
+}
+
+// Hasher simple interface for Hash method
+type Hasher interface {
+	//Hash a string
+	Hash(string) string
 }
 
 func getRoleConfig(rcs []RoleConfig, role string) RoleConfig {
