@@ -305,46 +305,6 @@ func (usecase *UserRemoveRole) Execute(username string, roleSlug string, authTok
 	return nil
 }
 
-type getUserAndAuthUser struct {
-	UserRepo          UserRepo
-	TokenAuthenticate TokenAuthenticate
-	RoleConfigs       []RoleConfig
-}
-
-func (usecase *getUserAndAuthUser) Execute(username string, authToken string) (user User, authenticatedUser User, error error) {
-	if username == "" {
-		return User{}, User{}, newBadRequestError("username is required")
-	}
-
-	if authToken == "" {
-		return User{}, User{}, newBadRequestError("authentication token is required")
-	}
-
-	authUserID, err := usecase.TokenAuthenticate.Execute(authToken)
-
-	if err != nil {
-		return User{}, User{}, err
-	}
-
-	u, err := usecase.UserRepo.GetByUsername(username)
-
-	if err != nil {
-		return User{}, User{}, errors.Wrap(err, "failed retrieving user")
-	}
-
-	if u.Username != username {
-		return User{}, User{}, newAuthorizationError("unauthorized to get user info")
-	}
-
-	authUser, err := usecase.UserRepo.Get(authUserID)
-
-	if err != nil {
-		return User{}, User{}, errors.Wrap(err, "failed retrieving authenticated user")
-	}
-
-	return u, authUser, nil
-}
-
 // UserChangePassword changes a user's password
 type UserChangePassword struct {
 	UserRepo          UserRepo
@@ -355,8 +315,9 @@ type UserChangePassword struct {
 }
 
 // Execute returns a nil error on success. Parameters username, newPassword, authToken, & authUserPassword are required.
-// Returns error implementing Authorization() when auth failed or all the authenticated user's roles CanEditUserRole func return false.
-// Returns error implementing BadRequest() when user doesn't exist.
+// Returns error implementing Authentication() when authentication failed
+// Returns error implementing Authorization() when authenticated user doesn't equal user being edited AND all the authenticated user's roles CanEditUser func return false.
+// Returns error implementing Authorization() when user doesn't exist. (prevents account enumeration)
 func (usecase *UserChangePassword) Execute(username string, newPassword string, authToken string, authUserPassword string) error {
 	if username == "" {
 		return newBadRequestError("Username is required")
@@ -405,10 +366,96 @@ func (usecase *UserChangePassword) Execute(username string, newPassword string, 
 	return errors.Wrap(usecase.UserRepo.Update(u), "failed updating user")
 }
 
+// UserSendPasswordReset send password reset email
+type UserSendPasswordReset struct {
+	PasswordResetMailer PasswordResetMailer
+	UserRepo            UserRepo
+	ResetTokenRepo      ResetTokenRepo
+}
+
+// PasswordResetMailer is used to abstract email content and sending.
+type PasswordResetMailer interface {
+	// resetTok is used to reset the user password
+	// Returns empty resetTok when email doesn't exist
+	Send(email string, resetTok string) error
+}
+
+// Execute sends a password reset token to email if exists.
+// If email doesn't exist sends email to notify email doesn't exist.
+// Error if email is empty or on internal server error
+func (usecase *UserSendPasswordReset) Execute(email string) error {
+
+	if email == "" {
+		return newBadRequestError("email is required")
+	}
+
+	user, err := usecase.UserRepo.GetByEmail(email)
+
+	if err != nil {
+		return errors.Wrap(err, "error getting user")
+	}
+
+	if user.Email != email {
+		return errors.Wrap(usecase.PasswordResetMailer.Send(email, ""), "failed sending email")
+	}
+
+	tok := uuid.New().String()
+
+	err = usecase.ResetTokenRepo.Insert(tok, user.UUID)
+
+	if err != nil {
+		return errors.Wrap(err, "failed inserting reset token")
+	}
+
+	return errors.Wrap(usecase.PasswordResetMailer.Send(email, tok), "failed sending email")
+}
+
+type getUserAndAuthUser struct {
+	UserRepo          UserRepo
+	TokenAuthenticate TokenAuthenticate
+	RoleConfigs       []RoleConfig
+}
+
+func (usecase *getUserAndAuthUser) Execute(username string, authToken string) (user User, authenticatedUser User, error error) {
+	if username == "" {
+		return User{}, User{}, newBadRequestError("username is required")
+	}
+
+	if authToken == "" {
+		return User{}, User{}, newBadRequestError("authentication token is required")
+	}
+
+	authUserID, err := usecase.TokenAuthenticate.Execute(authToken)
+
+	if err != nil {
+		return User{}, User{}, err
+	}
+
+	u, err := usecase.UserRepo.GetByUsername(username)
+
+	if err != nil {
+		return User{}, User{}, errors.Wrap(err, "failed retrieving user")
+	}
+
+	if u.Username != username {
+		// return AuthorizationError instead of BadRequest to it prevent account enumeration.
+		return User{}, User{}, newAuthorizationError("unauthorized to get user info")
+	}
+
+	authUser, err := usecase.UserRepo.Get(authUserID)
+
+	if err != nil {
+		return User{}, User{}, errors.Wrap(err, "failed retrieving authenticated user")
+	}
+
+	return u, authUser, nil
+}
+
 // UserRepo is used for storage and retrieval of user data.
 type UserRepo interface {
 	Get(UUID string) (user User, err error)
 	GetByUsername(username string) (user User, err error)
+	GetByEmail(email string) (user User, err error)
 
 	// Insert is used to add a user.
 	// Will return error that implements BadRequest() upon Email or Username exists conflict.
@@ -417,6 +464,11 @@ type UserRepo interface {
 	// Update is used to update a user. Update increments the version on every update.
 	// Will return error that implements BadRequest() upon Version conflict.
 	Update(User) error
+}
+
+type ResetTokenRepo interface {
+	Insert(UUID string, userID string) error
+	Get(UUID string) (userID string, error error)
 }
 
 // RoleConfig is used to define a role, including it's name, slug, & capabilities
