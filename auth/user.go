@@ -453,8 +453,13 @@ func (usecase *getUserAndAuthUser) Execute(username string, authToken string) (u
 
 // UserRepo is used for storage and retrieval of user data.
 type UserRepo interface {
+	//Get gets a User by their UUID
 	Get(UUID string) (user User, err error)
+
+	//GetByUsername gets a User by their username
 	GetByUsername(username string) (user User, err error)
+
+	//GetByEmail gets a User by their email
 	GetByEmail(email string) (user User, err error)
 
 	// Insert is used to add a user.
@@ -466,8 +471,12 @@ type UserRepo interface {
 	Update(User) error
 }
 
+// ResetTokenRepo is used to save reset token and retrieve reset token
 type ResetTokenRepo interface {
+	//Insert saves a reset token
 	Insert(UUID string, userID string) error
+
+	//Get gets the user for a reset token
 	Get(UUID string) (userID string, error error)
 }
 
