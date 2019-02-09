@@ -4,6 +4,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"regexp"
+	"time"
 )
 
 // User is the entity for passing user
@@ -399,15 +400,32 @@ func (usecase *UserSendPasswordReset) Execute(email string) error {
 		return errors.Wrap(usecase.PasswordResetMailer.Send(email, ""), "failed sending email")
 	}
 
-	tok := uuid.New().String()
+	tok := ResetToken{
+		UUID:       uuid.New().String(),
+		UserID:     user.UUID,
+		Expiration: time.Now().Add(time.Hour),
+	}
 
-	err = usecase.ResetTokenRepo.Insert(tok, user.UUID)
+	err = usecase.ResetTokenRepo.Insert(tok)
 
 	if err != nil {
 		return errors.Wrap(err, "failed inserting reset token")
 	}
 
-	return errors.Wrap(usecase.PasswordResetMailer.Send(email, tok), "failed sending email")
+	return errors.Wrap(usecase.PasswordResetMailer.Send(email, tok.UUID), "failed sending email")
+}
+
+//UserInfoByResetToken is used to retrieve user by a reset token
+type UserInfoByResetToken struct {
+	UserRepo       UserRepo
+	ResetTokenRepo ResetTokenRepo
+}
+
+// Execute returns User of Reset Token when valid
+// Error implements BadRequest() when reset token is invalid.
+// Otherwise error is an internal error
+func (usecase *UserInfoByResetToken) Execute(resetTok string) (User, error) {
+	return User{}, nil
 }
 
 type getUserAndAuthUser struct {
@@ -471,13 +489,19 @@ type UserRepo interface {
 	Update(User) error
 }
 
+type ResetToken struct {
+	UUID       string
+	UserID     string
+	Expiration time.Time
+}
+
 // ResetTokenRepo is used to save reset token and retrieve reset token
 type ResetTokenRepo interface {
-	//Insert saves a reset token
-	Insert(UUID string, userID string) error
+	//Insert saves a resetToken
+	Insert(ResetToken) error
 
-	//Get gets the user for a reset token
-	Get(UUID string) (userID string, error error)
+	//Get retrieves resetToken by UUID
+	Get(UUID string) (ResetToken, error)
 }
 
 // RoleConfig is used to define a role, including it's name, slug, & capabilities
