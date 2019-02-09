@@ -425,7 +425,23 @@ type UserInfoByResetToken struct {
 // Error implements BadRequest() when reset token is invalid.
 // Otherwise error is an internal error
 func (usecase *UserInfoByResetToken) Execute(resetTok string) (User, error) {
-	return User{}, nil
+	tok, err := usecase.ResetTokenRepo.Get(resetTok)
+
+	if err != nil {
+		return User{}, errors.Wrap(err, "failed getting token")
+	}
+
+	if !tok.Valid() {
+		return User{}, newBadRequestError("Invalid Token")
+	}
+
+	u, err := usecase.UserRepo.Get(tok.UserID)
+
+	if err != nil {
+		return User{}, errors.Wrap(err, "failed getting user")
+	}
+
+	return u, nil
 }
 
 type getUserAndAuthUser struct {
@@ -495,12 +511,16 @@ type ResetToken struct {
 	Expiration time.Time
 }
 
+func (tok *ResetToken) Valid() bool {
+	return tok.UUID != "" && tok.UserID != "" && tok.Expiration.After(time.Now())
+}
+
 // ResetTokenRepo is used to save reset token and retrieve reset token
 type ResetTokenRepo interface {
 	//Insert saves a resetToken
 	Insert(ResetToken) error
 
-	//Get retrieves resetToken by UUID
+	//Get retrieves resetToken by UUID, returns empty resetToken when not found
 	Get(UUID string) (ResetToken, error)
 }
 

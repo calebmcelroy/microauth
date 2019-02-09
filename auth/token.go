@@ -136,7 +136,7 @@ func (u TokenAuthenticate) Execute(token string) (userID string, error error) {
 		return "", errors.Wrap(err, "failed getting auth")
 	}
 
-	tokenExpired := t.Expiration.Unix() > 0 && t.Expiration.Unix() < time.Now().Unix()
+	tokenExpired := time.Now().After(t.Expiration)
 	tokenMatches := t.Token == token
 	tokenUserEmpty := t.UserID == ""
 
