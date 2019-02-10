@@ -59,7 +59,7 @@ func TestUserInfo_AuthorizationErrorWhenUsernameNotFound(t *testing.T) {
 	tokAuth := auth.TokenAuthenticate{TokenRepo: tokRepo}
 
 	userRepo := &mocks.UserRepo{}
-	userRepo.On("GetByUsername", "123").Return(auth.User{}, nil)
+	userRepo.On("Get", "123").Return(auth.User{}, nil)
 
 	usecase := auth.UserInfo{
 		TokenAuthenticate: tokAuth,
@@ -81,7 +81,7 @@ func TestUserInfo_ReturnErrorWhenUserRepoGetByUsernameFails(t *testing.T) {
 	tokAuth := auth.TokenAuthenticate{TokenRepo: tokRepo}
 
 	userRepo := &mocks.UserRepo{}
-	userRepo.On("GetByUsername", "123").Return(auth.User{}, errors.New("test error"))
+	userRepo.On("Get", "123").Return(auth.User{}, errors.New("test error"))
 
 	usecase := auth.UserInfo{
 		TokenAuthenticate: tokAuth,
@@ -105,9 +105,9 @@ func TestUserInfo_ReturnErrorWhenUserRepoFailedToGetAuthUser(t *testing.T) {
 	userRepo := &mocks.UserRepo{}
 
 	user := auth.User{
-		Username: "123",
+		UUID: "123",
 	}
-	userRepo.On("GetByUsername", "123").Return(user, nil)
+	userRepo.On("Get", "123").Return(user, nil)
 
 	roleSlug := "test"
 
@@ -147,9 +147,9 @@ func TestUserInfo_AuthorizationErrorWhenUserRoleConfigUnauthorized(t *testing.T)
 	userRepo := &mocks.UserRepo{}
 
 	user := auth.User{
-		Username: "123",
+		UUID: "123",
 	}
-	userRepo.On("GetByUsername", "123").Return(user, nil)
+	userRepo.On("Get", "123").Return(user, nil)
 
 	roleSlug := "test"
 
@@ -195,10 +195,10 @@ func TestUserInfo_ReturnsUserMinusPassHashWhenUserRoleConfigAuthorized(t *testin
 	userRepo := &mocks.UserRepo{}
 
 	user := auth.User{
-		Username:     "123",
+		UUID:         "123",
 		PasswordHash: "passHash",
 	}
-	userRepo.On("GetByUsername", "123").Return(user, nil)
+	userRepo.On("Get", "123").Return(user, nil)
 
 	roleSlug := "test"
 

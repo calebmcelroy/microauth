@@ -33,7 +33,7 @@ func TestUserChangePassword_ReturnAuthenticationErrorInvalidToken(t *testing.T) 
 		TokenAuthenticate: tokenAuth,
 	}
 
-	err := usecase.Execute("Username", "Password", "authToken", "authUserPassword")
+	err := usecase.Execute("userID", "Password", "authToken", "authUserPassword")
 	assert.Equal(t, true, auth.IsAuthenticationError(err))
 }
 
@@ -77,7 +77,7 @@ func TestUserChangePassword_AuthenticationErrorIfInvalidAuthUserPassword(t *test
 		UserRepo:          userRepo,
 	}
 
-	err := usecase.Execute("Username", "Password", "authToken", "authUserPassword")
+	err := usecase.Execute("userID", "Password", "authToken", "authUserPassword")
 
 	assert.Equal(t, true, auth.IsAuthenticationError(err))
 }
@@ -109,7 +109,7 @@ func TestUserChangePassword_ReturnsAuthorizationErrorIfCantEditUser(t *testing.T
 		PasswordHash: "passHash",
 	}
 
-	userRepo.On("GetByUsername", "Username").Return(user, nil)
+	userRepo.On("Get", "userID").Return(user, nil)
 
 	authUser := auth.User{
 		UUID:         "userID2",
@@ -142,7 +142,7 @@ func TestUserChangePassword_ReturnsAuthorizationErrorIfCantEditUser(t *testing.T
 		RoleConfigs:       roleConfigs,
 	}
 
-	err := usecase.Execute("Username", "Password", "authToken", "authUserPassword")
+	err := usecase.Execute("userID", "Password", "authToken", "authUserPassword")
 	assert.Equal(t, true, auth.IsAuthorizationError(err))
 }
 
@@ -186,7 +186,7 @@ func TestUserChangePassword_ReturnsBadRequestPasswordValidatorError(t *testing.T
 		PasswordHasher:    passHasher,
 	}
 
-	err := usecase.Execute("Username", "Password", "authToken", "authUserPassword")
+	err := usecase.Execute("userID", "Password", "authToken", "authUserPassword")
 	assert.Equal(t, true, auth.IsBadRequestError(err))
 	assert.Equal(t, "test error", errors.Cause(err).Error())
 }
@@ -237,7 +237,7 @@ func TestUserChangePassword_ReturnsUserRepoUpdateError(t *testing.T) {
 		PasswordHasher:    passHasher,
 	}
 
-	err := usecase.Execute("Username", "Password", "authToken", "authUserPassword")
+	err := usecase.Execute("userID", "Password", "authToken", "authUserPassword")
 	assert.Equal(t, "test error", errors.Cause(err).Error())
 }
 
@@ -287,6 +287,6 @@ func TestUserChangePassword_NilOnSuccess(t *testing.T) {
 		PasswordHasher:    passHasher,
 	}
 
-	err := usecase.Execute("Username", "Password", "authToken", "authUserPassword")
+	err := usecase.Execute("userID", "Password", "authToken", "authUserPassword")
 	assert.Nil(t, err)
 }

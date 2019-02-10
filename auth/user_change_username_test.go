@@ -33,7 +33,7 @@ func TestUserChangeUsername_ReturnAuthenticationErrorInvalidToken(t *testing.T) 
 		TokenAuthenticate: tokenAuth,
 	}
 
-	err := usecase.Execute("Username", "newUsername", "authToken")
+	err := usecase.Execute("userID", "newUsername", "authToken")
 	assert.Equal(t, true, auth.IsAuthenticationError(err))
 }
 
@@ -64,7 +64,7 @@ func TestUserChangeUsername_ReturnsAuthorizationErrorIfCantEditUser(t *testing.T
 		PasswordHash: "passHash",
 	}
 
-	userRepo.On("GetByUsername", "Username").Return(user, nil)
+	userRepo.On("Get", "userID").Return(user, nil)
 
 	authUser := auth.User{
 		UUID:         "userID2",
@@ -93,7 +93,7 @@ func TestUserChangeUsername_ReturnsAuthorizationErrorIfCantEditUser(t *testing.T
 		RoleConfigs:       roleConfigs,
 	}
 
-	err := usecase.Execute("Username", "newUsername", "authToken")
+	err := usecase.Execute("userID", "newUsername", "authToken")
 	assert.Equal(t, true, auth.IsAuthorizationError(err))
 }
 
@@ -133,7 +133,7 @@ func TestUserChangeUsername_ReturnsBadRequestUsernameValidatorError(t *testing.T
 		UserRepo:          userRepo,
 	}
 
-	err := usecase.Execute("Username", "newUsername", "authToken")
+	err := usecase.Execute("userID", "newUsername", "authToken")
 	assert.Equal(t, true, auth.IsBadRequestError(err))
 	assert.Equal(t, "test error", errors.Cause(err).Error())
 }
@@ -179,7 +179,7 @@ func TestUserChangeUsername_ReturnsUserRepoUpdateError(t *testing.T) {
 		UserRepo:          userRepo,
 	}
 
-	err := usecase.Execute("Username", "newUsername", "authToken")
+	err := usecase.Execute("userID", "newUsername", "authToken")
 	assert.Equal(t, "test error", errors.Cause(err).Error())
 }
 
@@ -224,6 +224,6 @@ func TestUserChangeUsername_NilOnSuccess(t *testing.T) {
 		UserRepo:          userRepo,
 	}
 
-	err := usecase.Execute("Username", "newUsername", "authToken")
+	err := usecase.Execute("userID", "newUsername", "authToken")
 	assert.Nil(t, err)
 }

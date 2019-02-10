@@ -23,9 +23,9 @@ func TestUserAssignRole_AuthorizationErrorWhenUserRoleConfigUnauthorized(t *test
 	userRepo := &mocks.UserRepo{}
 
 	user := auth.User{
-		Username: "123",
+		UUID: "123",
 	}
-	userRepo.On("GetByUsername", "123").Return(user, nil)
+	userRepo.On("Get", "123").Return(user, nil)
 
 	roleSlug := "test"
 	newRoleSlug := "newRole"
@@ -80,9 +80,9 @@ func TestUserAssignRole_ErrorWhenUserRepoUpdateError(t *testing.T) {
 	userRepo := &mocks.UserRepo{}
 
 	user := auth.User{
-		Username: "123",
+		UUID: "123",
 	}
-	userRepo.On("GetByUsername", "123").Return(user, nil)
+	userRepo.On("Get", "123").Return(user, nil)
 
 	roleSlug := "test"
 	newRoleSlug := "newRole"
@@ -140,10 +140,10 @@ func TestUserAssignRole_ErrorWhenRoleAlreadyExists(t *testing.T) {
 
 	newRoleSlug := "newRole"
 	user := auth.User{
-		Username: "123",
-		Roles:    []string{newRoleSlug},
+		UUID:  "123",
+		Roles: []string{newRoleSlug},
 	}
-	userRepo.On("GetByUsername", "123").Return(user, nil)
+	userRepo.On("Get", "123").Return(user, nil)
 
 	roleSlug := "test"
 
@@ -198,10 +198,10 @@ func TestUserAssignRole_AuthorizationErrorWhenRoleAlreadyExistsButNotAuthorized(
 
 	newRoleSlug := "newRole"
 	user := auth.User{
-		Username: "123",
-		Roles:    []string{newRoleSlug},
+		UUID:  "123",
+		Roles: []string{newRoleSlug},
 	}
-	userRepo.On("GetByUsername", "123").Return(user, nil)
+	userRepo.On("Get", "123").Return(user, nil)
 
 	roleSlug := "test"
 
@@ -255,9 +255,9 @@ func TestUserAssignRole_UpdatesUserWithRole(t *testing.T) {
 	userRepo := &mocks.UserRepo{}
 
 	user := auth.User{
-		Username: "123",
+		UUID: "123",
 	}
-	userRepo.On("GetByUsername", "123").Return(user, nil)
+	userRepo.On("Get", "123").Return(user, nil)
 
 	roleSlug := "test"
 	newRoleSlug := "newRole"

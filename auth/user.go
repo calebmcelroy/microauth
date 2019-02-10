@@ -124,12 +124,19 @@ type UserAuthenticate struct {
 
 // Execute returns nil error on success. An error implementing Authentication() is returned when invalid.
 // An error implementing BadRequest() is return when username or password are empty.
-func (a UserAuthenticate) Execute(username string, password string) (userID string, error error) {
-	if username == "" || password == "" {
-		return "", newBadRequestError("username and password are required")
+func (a UserAuthenticate) Execute(usernameEmail string, password string) (userID string, error error) {
+	if usernameEmail == "" || password == "" {
+		return "", newBadRequestError("username/email and password are required")
 	}
 
-	u, err := a.UserRepo.GetByUsername(username)
+	var u User
+	err := errors.New("")
+
+	if validateEmail(usernameEmail) {
+		u, err = a.UserRepo.GetByEmail(usernameEmail)
+	} else {
+		u, err = a.UserRepo.GetByUsername(usernameEmail)
+	}
 
 	if err != nil {
 		return "", errors.Wrap(err, "failed getting user")
@@ -138,19 +145,19 @@ func (a UserAuthenticate) Execute(username string, password string) (userID stri
 	passMatch := u.PasswordHash == a.PasswordHasher.Hash(password)
 
 	if u.PasswordHash == "" || !passMatch {
-		return "", newAuthenticationError("invalid username or password")
+		return "", newAuthenticationError("invalid username/email or password")
 	}
 
 	return u.UUID, nil
 }
 
-// UserExists checks if user exists
-type UserExists struct {
+// UsernameExists checks if user exists
+type UsernameExists struct {
 	UserRepo UserRepo
 }
 
 // Execute returns true on success. Username is required.
-func (usecase *UserExists) Execute(username string) (bool, error) {
+func (usecase *UsernameExists) Execute(username string) (bool, error) {
 	if username == "" {
 		return false, newBadRequestError("username is required")
 	}
@@ -168,6 +175,30 @@ func (usecase *UserExists) Execute(username string) (bool, error) {
 	return true, nil
 }
 
+// EmailExists checks if user exists
+type UserEmailExists struct {
+	UserRepo UserRepo
+}
+
+// Execute returns true on success. Email is required.
+func (usecase *UserEmailExists) Execute(email string) (bool, error) {
+	if email == "" {
+		return false, newBadRequestError("username is required")
+	}
+
+	user, err := usecase.UserRepo.GetByEmail(email)
+
+	if err != nil {
+		return false, errors.Wrap(err, "failed searching for user")
+	}
+
+	if user.Email != email {
+		return false, nil
+	}
+
+	return true, nil
+}
+
 // UserInfo gets a users info
 type UserInfo struct {
 	UserRepo          UserRepo
@@ -177,14 +208,14 @@ type UserInfo struct {
 
 // Execute returns a User struct and nil error on success. The authToken parameter is required.
 // RoleConfigs is used to determine authorization to read user info.
-func (usecase *UserInfo) Execute(username string, authToken string) (User, error) {
+func (usecase *UserInfo) Execute(userUUID string, authToken string) (User, error) {
 	getUsers := getUserAndAuthUser{
 		UserRepo:          usecase.UserRepo,
 		TokenAuthenticate: usecase.TokenAuthenticate,
 		RoleConfigs:       usecase.RoleConfigs,
 	}
 
-	u, authUser, err := getUsers.Execute(username, authToken)
+	u, authUser, err := getUsers.Execute(userUUID, authToken)
 
 	if err != nil {
 		return User{}, err
@@ -218,14 +249,14 @@ type UserAssignRole struct {
 // Execute returns a nil error on success. Parameters username, roleSlug, & authToken are required.
 // Returns error implementing Authorization() when roleSlug's RoleConfig CanAssignUserRole func returns false.
 // Returns error implementing BadRequest() when user already has role.
-func (usecase *UserAssignRole) Execute(username string, roleSlug string, authToken string) error {
+func (usecase *UserAssignRole) Execute(userUUID string, roleSlug string, authToken string) error {
 	getUsers := getUserAndAuthUser{
 		UserRepo:          usecase.UserRepo,
 		TokenAuthenticate: usecase.TokenAuthenticate,
 		RoleConfigs:       usecase.RoleConfigs,
 	}
 
-	u, authUser, err := getUsers.Execute(username, authToken)
+	u, authUser, err := getUsers.Execute(userUUID, authToken)
 
 	if err != nil {
 		return err
@@ -266,14 +297,14 @@ type UserRemoveRole struct {
 // Execute returns a nil error on success. Parameters username, roleSlug, & authToken are required.
 // Returns error implementing Authorization() when roleSlug's RoleConfig CanRemoveUserRole func returns false.
 // Returns error implementing BadRequest() when user doesn't have role.
-func (usecase *UserRemoveRole) Execute(username string, roleSlug string, authToken string) error {
+func (usecase *UserRemoveRole) Execute(userUUID string, roleSlug string, authToken string) error {
 	getUsers := getUserAndAuthUser{
 		UserRepo:          usecase.UserRepo,
 		TokenAuthenticate: usecase.TokenAuthenticate,
 		RoleConfigs:       usecase.RoleConfigs,
 	}
 
-	u, authUser, err := getUsers.Execute(username, authToken)
+	u, authUser, err := getUsers.Execute(userUUID, authToken)
 
 	if err != nil {
 		return err
@@ -319,9 +350,9 @@ type UserChangePassword struct {
 // Returns error implementing Authentication() when authentication failed
 // Returns error implementing Authorization() when authenticated user doesn't equal user being edited AND all the authenticated user's roles CanEditUser func return false.
 // Returns error implementing Authorization() when user doesn't exist. (prevents account enumeration)
-func (usecase *UserChangePassword) Execute(username string, newPassword string, authToken string, authUserPassword string) error {
-	if username == "" {
-		return newBadRequestError("username is required")
+func (usecase *UserChangePassword) Execute(userUUID string, newPassword string, authToken string, authUserPassword string) error {
+	if userUUID == "" {
+		return newBadRequestError("user UUID is required")
 	}
 
 	getUsers := getUserAndAuthUser{
@@ -330,7 +361,7 @@ func (usecase *UserChangePassword) Execute(username string, newPassword string, 
 		RoleConfigs:       usecase.RoleConfigs,
 	}
 
-	u, authUser, err := getUsers.Execute(username, authToken)
+	u, authUser, err := getUsers.Execute(userUUID, authToken)
 
 	if err != nil {
 		return err
@@ -484,9 +515,9 @@ type UserChangeUsername struct {
 // Returns error implementing Authentication() when authToken is invalid.
 // Returns error implementing Authorization() when authenticated user doesn't equal user being edited AND all the authenticated user's roles CanEditUser func return false.
 // Otherwise returns an internal server error.
-func (usecase *UserChangeUsername) Execute(username string, newUsername string, authToken string) error {
-	if username == "" {
-		return newBadRequestError("username is required")
+func (usecase *UserChangeUsername) Execute(userUUID string, newUsername string, authToken string) error {
+	if userUUID == "" {
+		return newBadRequestError("user UUID is required")
 	}
 
 	if newUsername == "" {
@@ -499,7 +530,7 @@ func (usecase *UserChangeUsername) Execute(username string, newUsername string, 
 		RoleConfigs:       usecase.RoleConfigs,
 	}
 
-	u, authUser, err := getUsers.Execute(username, authToken)
+	u, authUser, err := getUsers.Execute(userUUID, authToken)
 
 	if err != nil {
 		return err
@@ -531,9 +562,9 @@ type UserChangeEmail struct {
 // Returns error implementing Authentication() when authToken or authUserPassword is invalid.
 // Returns error implementing Authorization() when authenticated user doesn't equal user being edited AND all the authenticated user's roles CanEditUser func return false.
 // Otherwise returns an internal server error.
-func (usecase *UserChangeEmail) Execute(username string, newEmail string, authToken string, authUserPassword string) error {
-	if username == "" {
-		return newBadRequestError("username is required")
+func (usecase *UserChangeEmail) Execute(userUUID string, newEmail string, authToken string, authUserPassword string) error {
+	if userUUID == "" {
+		return newBadRequestError("user UUID is required")
 	}
 
 	getUsers := getUserAndAuthUser{
@@ -542,7 +573,7 @@ func (usecase *UserChangeEmail) Execute(username string, newEmail string, authTo
 		RoleConfigs:       usecase.RoleConfigs,
 	}
 
-	u, authUser, err := getUsers.Execute(username, authToken)
+	u, authUser, err := getUsers.Execute(userUUID, authToken)
 
 	if err != nil {
 		return err
@@ -570,9 +601,9 @@ type getUserAndAuthUser struct {
 	RoleConfigs       []RoleConfig
 }
 
-func (usecase *getUserAndAuthUser) Execute(username string, authToken string) (user User, authenticatedUser User, error error) {
-	if username == "" {
-		return User{}, User{}, newBadRequestError("username is required")
+func (usecase *getUserAndAuthUser) Execute(userUUID string, authToken string) (user User, authenticatedUser User, error error) {
+	if userUUID == "" {
+		return User{}, User{}, newBadRequestError("user UUID is required")
 	}
 
 	if authToken == "" {
@@ -585,13 +616,13 @@ func (usecase *getUserAndAuthUser) Execute(username string, authToken string) (u
 		return User{}, User{}, err
 	}
 
-	u, err := usecase.UserRepo.GetByUsername(username)
+	u, err := usecase.UserRepo.Get(userUUID)
 
 	if err != nil {
 		return User{}, User{}, errors.Wrap(err, "failed retrieving user")
 	}
 
-	if u.Username != username {
+	if u.UUID != userUUID {
 		// return AuthorizationError instead of BadRequest to it prevent account enumeration.
 		return User{}, User{}, newAuthorizationError("unauthorized to get user info")
 	}

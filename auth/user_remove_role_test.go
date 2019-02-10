@@ -23,9 +23,9 @@ func TestUserRemoveRole_AuthorizationErrorWhenUserRoleConfigUnauthorized(t *test
 	userRepo := &mocks.UserRepo{}
 
 	user := auth.User{
-		Username: "123",
+		UUID: "123",
 	}
-	userRepo.On("GetByUsername", "123").Return(user, nil)
+	userRepo.On("Get", "123").Return(user, nil)
 
 	roleSlug := "test"
 	removeRoleSlug := "removeRole"
@@ -81,10 +81,10 @@ func TestUserRemoveRole_ErrorWhenUserRepoUpdateError(t *testing.T) {
 
 	removeRoleSlug := "removeRole"
 	user := auth.User{
-		Username: "123",
-		Roles:    []string{removeRoleSlug},
+		UUID:  "123",
+		Roles: []string{removeRoleSlug},
 	}
-	userRepo.On("GetByUsername", "123").Return(user, nil)
+	userRepo.On("Get", "123").Return(user, nil)
 
 	roleSlug := "test"
 
@@ -141,10 +141,10 @@ func TestUserRemoveRole_ErrorWhenRoleDoesntExist(t *testing.T) {
 
 	removeRoleSlug := "newRole"
 	user := auth.User{
-		Username: "123",
-		Roles:    []string{},
+		UUID:  "123",
+		Roles: []string{},
 	}
-	userRepo.On("GetByUsername", "123").Return(user, nil)
+	userRepo.On("Get", "123").Return(user, nil)
 
 	roleSlug := "test"
 
@@ -199,10 +199,10 @@ func TestUserRemoveRole_AuthorizationErrorWhenRoleDoesntExistButNotAuthorized(t 
 
 	removeRoleSlug := "removeRole"
 	user := auth.User{
-		Username: "123",
-		Roles:    []string{},
+		UUID:  "123",
+		Roles: []string{},
 	}
-	userRepo.On("GetByUsername", "123").Return(user, nil)
+	userRepo.On("Get", "123").Return(user, nil)
 
 	roleSlug := "test"
 
@@ -258,10 +258,10 @@ func TestUserRemoveRole_UpdatesUserWithRole(t *testing.T) {
 	removeRoleSlug := "removeRole"
 
 	user := auth.User{
-		Username: "123",
-		Roles:    []string{"firstRole", removeRoleSlug, "secondRole"},
+		UUID:  "123",
+		Roles: []string{"firstRole", removeRoleSlug, "secondRole"},
 	}
-	userRepo.On("GetByUsername", "123").Return(user, nil)
+	userRepo.On("Get", "123").Return(user, nil)
 
 	roleSlug := "test"
 

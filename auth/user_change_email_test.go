@@ -28,7 +28,7 @@ func TestUserChangeEmail_ReturnAuthenticationErrorInvalidToken(t *testing.T) {
 		TokenAuthenticate: tokenAuth,
 	}
 
-	err := usecase.Execute("Username", "NewEmail@test.com", "authToken", "authUserPassword")
+	err := usecase.Execute("userID", "NewEmail@test.com", "authToken", "authUserPassword")
 	assert.Equal(t, true, auth.IsAuthenticationError(err))
 }
 
@@ -68,7 +68,7 @@ func TestUserChangeEmail_AuthenticationErrorIfInvalidAuthUserPassword(t *testing
 		UserRepo:          userRepo,
 	}
 
-	err := usecase.Execute("Username", "NewEmail@test.com", "authToken", "authUserPassword")
+	err := usecase.Execute("userID", "NewEmail@test.com", "authToken", "authUserPassword")
 
 	assert.Equal(t, true, auth.IsAuthenticationError(err))
 }
@@ -97,7 +97,7 @@ func TestUserChangeEmail_ReturnsAuthorizationErrorIfCantEditUser(t *testing.T) {
 		PasswordHash: "passHash",
 	}
 
-	userRepo.On("GetByUsername", "Username").Return(user, nil)
+	userRepo.On("Get", "userID").Return(user, nil)
 
 	authUser := auth.User{
 		UUID:         "userID2",
@@ -129,7 +129,7 @@ func TestUserChangeEmail_ReturnsAuthorizationErrorIfCantEditUser(t *testing.T) {
 		RoleConfigs:       roleConfigs,
 	}
 
-	err := usecase.Execute("Username", "NewEmail@test.com", "authToken", "authUserPassword")
+	err := usecase.Execute("userID", "NewEmail@test.com", "authToken", "authUserPassword")
 	assert.Equal(t, true, auth.IsAuthorizationError(err))
 }
 
@@ -174,7 +174,7 @@ func TestUserChangeEmail_ReturnsBadRequestOnInvalidEmail(t *testing.T) {
 		PasswordHasher:    passHasher,
 	}
 
-	err := usecase.Execute("Username", "NewEmail", "authToken", "authUserPassword")
+	err := usecase.Execute("userID", "NewEmail", "authToken", "authUserPassword")
 	assert.Equal(t, true, auth.IsBadRequestError(err))
 }
 
@@ -219,7 +219,7 @@ func TestUserChangeEmail_ReturnsUserRepoUpdateError(t *testing.T) {
 		PasswordHasher:    passHasher,
 	}
 
-	err := usecase.Execute("Username", "NewEmail@test.com", "authToken", "authUserPassword")
+	err := usecase.Execute("userID", "NewEmail@test.com", "authToken", "authUserPassword")
 	assert.Equal(t, "test error", errors.Cause(err).Error())
 }
 
@@ -264,6 +264,6 @@ func TestUserChangeEmail_NilOnSuccess(t *testing.T) {
 		PasswordHasher:    passHasher,
 	}
 
-	err := usecase.Execute("Username", "NewEmail@test.com", "authToken", "authUserPassword")
+	err := usecase.Execute("userID", "NewEmail@test.com", "authToken", "authUserPassword")
 	assert.Nil(t, err)
 }
