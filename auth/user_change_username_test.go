@@ -10,16 +10,16 @@ import (
 	"time"
 )
 
-func TestUserChangePassword_BadRequestErrorMissingUsername(t *testing.T) {
-	usecase := auth.UserChangePassword{}
+func TestUserChangeUsername_BadRequestErrorMissingUsername(t *testing.T) {
+	usecase := auth.UserChangeUsername{}
 
-	err := usecase.Execute("", "Password", "authToken", "authUserPassword")
+	err := usecase.Execute("", "newUsername", "authToken")
 	assert.Equal(t, true, auth.IsBadRequestError(err))
 }
 
-func TestUserChangePassword_ReturnAuthenticationErrorInvalidToken(t *testing.T) {
-	passValidator := &mocks.Validator{}
-	passValidator.On("Validate", mock.Anything).Return(errors.New("test error"))
+func TestUserChangeUsername_ReturnAuthenticationErrorInvalidToken(t *testing.T) {
+	usernameValidator := &mocks.Validator{}
+	usernameValidator.On("Validate", mock.Anything).Return(errors.New("test error"))
 
 	tokRepo := &mocks.TokenRepo{}
 	tokRepo.On("Get", "authToken").Return(auth.Token{}, nil)
@@ -28,61 +28,16 @@ func TestUserChangePassword_ReturnAuthenticationErrorInvalidToken(t *testing.T) 
 		TokenRepo: tokRepo,
 	}
 
-	usecase := auth.UserChangePassword{
-		PasswordValidator: passValidator,
+	usecase := auth.UserChangeUsername{
+		UsernameValidator: usernameValidator,
 		TokenAuthenticate: tokenAuth,
 	}
 
-	err := usecase.Execute("Username", "Password", "authToken", "authUserPassword")
+	err := usecase.Execute("Username", "newUsername", "authToken")
 	assert.Equal(t, true, auth.IsAuthenticationError(err))
 }
 
-func TestUserChangePassword_AuthenticationErrorIfInvalidAuthUserPassword(t *testing.T) {
-	tokRepo := &mocks.TokenRepo{}
-
-	tok := auth.Token{
-		Token:      "authToken",
-		UserID:     "userID",
-		Expiration: time.Now().Add(time.Hour),
-	}
-
-	tokRepo.On("Get", "authToken").Return(tok, nil)
-
-	tokenAuth := auth.TokenAuthenticate{
-		TokenRepo: tokRepo,
-	}
-
-	passValidator := &mocks.Validator{}
-	passValidator.On("Validate", mock.Anything).Return(nil)
-
-	userRepo := &mocks.UserRepo{}
-	user := auth.User{
-		UUID:         "userID",
-		Email:        "test@test.com",
-		Username:     "Username",
-		Roles:        []string{"roleSlug"},
-		PasswordHash: "test",
-	}
-
-	userRepo.On("GetByUsername", "Username").Return(user, nil)
-	userRepo.On("Get", "userID").Return(user, nil)
-
-	passHasher := &mocks.Hasher{}
-	passHasher.On("Hash", "authUserPassword").Return("invalidPass")
-
-	usecase := auth.UserChangePassword{
-		PasswordValidator: passValidator,
-		PasswordHasher:    passHasher,
-		TokenAuthenticate: tokenAuth,
-		UserRepo:          userRepo,
-	}
-
-	err := usecase.Execute("Username", "Password", "authToken", "authUserPassword")
-
-	assert.Equal(t, true, auth.IsAuthenticationError(err))
-}
-
-func TestUserChangePassword_ReturnsAuthorizationErrorIfCantEditUser(t *testing.T) {
+func TestUserChangeUsername_ReturnsAuthorizationErrorIfCantEditUser(t *testing.T) {
 	tokRepo := &mocks.TokenRepo{}
 
 	tok := auth.Token{
@@ -97,8 +52,8 @@ func TestUserChangePassword_ReturnsAuthorizationErrorIfCantEditUser(t *testing.T
 		TokenRepo: tokRepo,
 	}
 
-	passValidator := &mocks.Validator{}
-	passValidator.On("Validate", mock.Anything).Return(errors.New("test error"))
+	usernameValidator := &mocks.Validator{}
+	usernameValidator.On("Validate", mock.Anything).Return(errors.New("test error"))
 
 	userRepo := &mocks.UserRepo{}
 	user := auth.User{
@@ -120,9 +75,6 @@ func TestUserChangePassword_ReturnsAuthorizationErrorIfCantEditUser(t *testing.T
 	}
 	userRepo.On("Get", "userID2").Return(authUser, nil)
 
-	passHasher := &mocks.Hasher{}
-	passHasher.On("Hash", "authUserPassword").Return("passHash")
-
 	roleConfigs := []auth.RoleConfig{
 		{
 			Name: "Test",
@@ -134,19 +86,18 @@ func TestUserChangePassword_ReturnsAuthorizationErrorIfCantEditUser(t *testing.T
 		},
 	}
 
-	usecase := auth.UserChangePassword{
-		PasswordValidator: passValidator,
+	usecase := auth.UserChangeUsername{
+		UsernameValidator: usernameValidator,
 		TokenAuthenticate: tokenAuth,
 		UserRepo:          userRepo,
-		PasswordHasher:    passHasher,
 		RoleConfigs:       roleConfigs,
 	}
 
-	err := usecase.Execute("Username", "Password", "authToken", "authUserPassword")
+	err := usecase.Execute("Username", "newUsername", "authToken")
 	assert.Equal(t, true, auth.IsAuthorizationError(err))
 }
 
-func TestUserChangePassword_ReturnsBadRequestPasswordValidatorError(t *testing.T) {
+func TestUserChangeUsername_ReturnsBadRequestUsernameValidatorError(t *testing.T) {
 	tokRepo := &mocks.TokenRepo{}
 
 	tok := auth.Token{
@@ -161,8 +112,8 @@ func TestUserChangePassword_ReturnsBadRequestPasswordValidatorError(t *testing.T
 		TokenRepo: tokRepo,
 	}
 
-	passValidator := &mocks.Validator{}
-	passValidator.On("Validate", mock.Anything).Return(errors.New("test error"))
+	usernameValidator := &mocks.Validator{}
+	usernameValidator.On("Validate", mock.Anything).Return(errors.New("test error"))
 
 	userRepo := &mocks.UserRepo{}
 	user := auth.User{
@@ -176,22 +127,18 @@ func TestUserChangePassword_ReturnsBadRequestPasswordValidatorError(t *testing.T
 	userRepo.On("GetByUsername", "Username").Return(user, nil)
 	userRepo.On("Get", "userID").Return(user, nil)
 
-	passHasher := &mocks.Hasher{}
-	passHasher.On("Hash", "authUserPassword").Return("passHash")
-
-	usecase := auth.UserChangePassword{
-		PasswordValidator: passValidator,
+	usecase := auth.UserChangeUsername{
+		UsernameValidator: usernameValidator,
 		TokenAuthenticate: tokenAuth,
 		UserRepo:          userRepo,
-		PasswordHasher:    passHasher,
 	}
 
-	err := usecase.Execute("Username", "Password", "authToken", "authUserPassword")
+	err := usecase.Execute("Username", "newUsername", "authToken")
 	assert.Equal(t, true, auth.IsBadRequestError(err))
 	assert.Equal(t, "test error", errors.Cause(err).Error())
 }
 
-func TestUserChangePassword_ReturnsUserRepoUpdateError(t *testing.T) {
+func TestUserChangeUsername_ReturnsUserRepoUpdateError(t *testing.T) {
 	tokRepo := &mocks.TokenRepo{}
 
 	tok := auth.Token{
@@ -206,8 +153,8 @@ func TestUserChangePassword_ReturnsUserRepoUpdateError(t *testing.T) {
 		TokenRepo: tokRepo,
 	}
 
-	passValidator := &mocks.Validator{}
-	passValidator.On("Validate", mock.Anything).Return(nil)
+	usernameValidator := &mocks.Validator{}
+	usernameValidator.On("Validate", mock.Anything).Return(nil)
 
 	userRepo := &mocks.UserRepo{}
 	user := auth.User{
@@ -221,27 +168,22 @@ func TestUserChangePassword_ReturnsUserRepoUpdateError(t *testing.T) {
 	userRepo.On("GetByUsername", "Username").Return(user, nil)
 	userRepo.On("Get", "userID").Return(user, nil)
 
-	passHasher := &mocks.Hasher{}
-	passHasher.On("Hash", "authUserPassword").Return("passHash")
-
-	passHasher.On("Hash", "Password").Return("newPassHash")
 	updatedUser := user
-	updatedUser.PasswordHash = "newPassHash"
+	updatedUser.Username = "newUsername"
 
 	userRepo.On("Update", updatedUser).Return(errors.New("test error"))
 
-	usecase := auth.UserChangePassword{
-		PasswordValidator: passValidator,
+	usecase := auth.UserChangeUsername{
+		UsernameValidator: usernameValidator,
 		TokenAuthenticate: tokenAuth,
 		UserRepo:          userRepo,
-		PasswordHasher:    passHasher,
 	}
 
-	err := usecase.Execute("Username", "Password", "authToken", "authUserPassword")
+	err := usecase.Execute("Username", "newUsername", "authToken")
 	assert.Equal(t, "test error", errors.Cause(err).Error())
 }
 
-func TestUserChangePassword_NilOnSuccess(t *testing.T) {
+func TestUserChangeUsername_NilOnSuccess(t *testing.T) {
 	tokRepo := &mocks.TokenRepo{}
 
 	tok := auth.Token{
@@ -256,8 +198,8 @@ func TestUserChangePassword_NilOnSuccess(t *testing.T) {
 		TokenRepo: tokRepo,
 	}
 
-	passValidator := &mocks.Validator{}
-	passValidator.On("Validate", mock.Anything).Return(nil)
+	usernameValidator := &mocks.Validator{}
+	usernameValidator.On("Validate", mock.Anything).Return(nil)
 
 	userRepo := &mocks.UserRepo{}
 	user := auth.User{
@@ -271,22 +213,17 @@ func TestUserChangePassword_NilOnSuccess(t *testing.T) {
 	userRepo.On("GetByUsername", "Username").Return(user, nil)
 	userRepo.On("Get", "userID").Return(user, nil)
 
-	passHasher := &mocks.Hasher{}
-	passHasher.On("Hash", "authUserPassword").Return("passHash")
-
-	passHasher.On("Hash", "Password").Return("newPassHash")
 	updatedUser := user
-	updatedUser.PasswordHash = "newPassHash"
+	updatedUser.Username = "newUsername"
 
 	userRepo.On("Update", updatedUser).Return(nil)
 
-	usecase := auth.UserChangePassword{
-		PasswordValidator: passValidator,
+	usecase := auth.UserChangeUsername{
+		UsernameValidator: usernameValidator,
 		TokenAuthenticate: tokenAuth,
 		UserRepo:          userRepo,
-		PasswordHasher:    passHasher,
 	}
 
-	err := usecase.Execute("Username", "Password", "authToken", "authUserPassword")
+	err := usecase.Execute("Username", "newUsername", "authToken")
 	assert.Nil(t, err)
 }

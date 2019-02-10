@@ -321,7 +321,7 @@ type UserChangePassword struct {
 // Returns error implementing Authorization() when user doesn't exist. (prevents account enumeration)
 func (usecase *UserChangePassword) Execute(username string, newPassword string, authToken string, authUserPassword string) error {
 	if username == "" {
-		return newBadRequestError("Username is required")
+		return newBadRequestError("username is required")
 	}
 
 	getUsers := getUserAndAuthUser{
@@ -340,27 +340,13 @@ func (usecase *UserChangePassword) Execute(username string, newPassword string, 
 		return newAuthenticationError("invalid password")
 	}
 
-	canEdit := false
-
-	if u.UUID == authUser.UUID {
-		canEdit = true
-	} else {
-		for _, r := range authUser.Roles {
-			c := getRoleConfig(usecase.RoleConfigs, r)
-			if c.CanEditUser(u, authUser) {
-				canEdit = true
-				break
-			}
-		}
-	}
-
-	if !canEdit {
+	if !canEdit(u, authUser, usecase.RoleConfigs) {
 		return newAuthorizationError("cannot edit user")
 	}
 
 	err = usecase.PasswordValidator.Validate(newPassword)
 	if err != nil {
-		return errors.Wrap(err, "new password invalid")
+		return newBadRequestError(err.Error())
 	}
 
 	u.PasswordHash = usecase.PasswordHasher.Hash(newPassword)
@@ -415,7 +401,7 @@ func (usecase *UserSendPasswordReset) Execute(email string) error {
 	return errors.Wrap(usecase.PasswordResetMailer.Send(email, tok.UUID), "failed sending email")
 }
 
-//UserInfoByResetToken is used to retrieve user by a reset token
+// UserInfoByResetToken is used to retrieve user by a reset token
 type UserInfoByResetToken struct {
 	UserRepo       UserRepo
 	ResetTokenRepo ResetTokenRepo
@@ -432,7 +418,7 @@ func (usecase *UserInfoByResetToken) Execute(resetTok string) (User, error) {
 	}
 
 	if !tok.Valid() {
-		return User{}, newBadRequestError("Invalid Token")
+		return User{}, newBadRequestError("invalid token")
 	}
 
 	u, err := usecase.UserRepo.Get(tok.UserID)
@@ -442,6 +428,140 @@ func (usecase *UserInfoByResetToken) Execute(resetTok string) (User, error) {
 	}
 
 	return u, nil
+}
+
+// UserResetPassword resets a user password using a resetToken
+type UserResetPassword struct {
+	UserRepo          UserRepo
+	ResetTokenRepo    ResetTokenRepo
+	PasswordValidator Validator
+	PasswordHasher    Hasher
+}
+
+// Execute returns nil on success.
+// Returns error implementing BadRequest() when token invalid or password invalid.
+// Otherwise returns an internal server error
+func (usecase *UserResetPassword) Execute(resetToken string, newPassword string) error {
+
+	tok, err := usecase.ResetTokenRepo.Get(resetToken)
+
+	if err != nil {
+		return errors.Wrap(err, "failed getting token")
+	}
+
+	if !tok.Valid() {
+		return newBadRequestError("invalid token")
+	}
+
+	err = usecase.PasswordValidator.Validate(newPassword)
+	if err != nil {
+		return newBadRequestError(err.Error())
+	}
+
+	u, err := usecase.UserRepo.Get(tok.UserID)
+
+	if err != nil {
+		return errors.Wrap(err, "failed getting user")
+	}
+
+	u.PasswordHash = usecase.PasswordHasher.Hash(newPassword)
+
+	err = usecase.UserRepo.Update(u)
+
+	return errors.Wrap(err, "user update failed")
+}
+
+// UserChangeUsername changes a user's username
+type UserChangeUsername struct {
+	UserRepo          UserRepo
+	TokenAuthenticate TokenAuthenticate
+	RoleConfigs       []RoleConfig
+	UsernameValidator Validator
+}
+
+// Execute returns nil on success.
+// Returns error implementing BadRequest() when username invalid or new username invalid.
+// Returns error implementing Authentication() when authToken is invalid.
+// Returns error implementing Authorization() when authenticated user doesn't equal user being edited AND all the authenticated user's roles CanEditUser func return false.
+// Otherwise returns an internal server error.
+func (usecase *UserChangeUsername) Execute(username string, newUsername string, authToken string) error {
+	if username == "" {
+		return newBadRequestError("username is required")
+	}
+
+	if newUsername == "" {
+		return newBadRequestError("must specify new username")
+	}
+
+	getUsers := getUserAndAuthUser{
+		UserRepo:          usecase.UserRepo,
+		TokenAuthenticate: usecase.TokenAuthenticate,
+		RoleConfigs:       usecase.RoleConfigs,
+	}
+
+	u, authUser, err := getUsers.Execute(username, authToken)
+
+	if err != nil {
+		return err
+	}
+
+	if !canEdit(u, authUser, usecase.RoleConfigs) {
+		return newAuthorizationError("cannot edit user")
+	}
+
+	err = usecase.UsernameValidator.Validate(newUsername)
+	if err != nil {
+		return newBadRequestError(err.Error())
+	}
+
+	u.Username = newUsername
+	return errors.Wrap(usecase.UserRepo.Update(u), "failed updating user")
+}
+
+// UserChangeEmail changes a user's email
+type UserChangeEmail struct {
+	UserRepo          UserRepo
+	TokenAuthenticate TokenAuthenticate
+	RoleConfigs       []RoleConfig
+	PasswordHasher    Hasher
+}
+
+// Execute returns nil on success.
+// Returns error implementing BadRequest() when username invalid or new email invalid.
+// Returns error implementing Authentication() when authToken or authUserPassword is invalid.
+// Returns error implementing Authorization() when authenticated user doesn't equal user being edited AND all the authenticated user's roles CanEditUser func return false.
+// Otherwise returns an internal server error.
+func (usecase *UserChangeEmail) Execute(username string, newEmail string, authToken string, authUserPassword string) error {
+	if username == "" {
+		return newBadRequestError("username is required")
+	}
+
+	getUsers := getUserAndAuthUser{
+		UserRepo:          usecase.UserRepo,
+		TokenAuthenticate: usecase.TokenAuthenticate,
+		RoleConfigs:       usecase.RoleConfigs,
+	}
+
+	u, authUser, err := getUsers.Execute(username, authToken)
+
+	if err != nil {
+		return err
+	}
+
+	if authUser.PasswordHash != usecase.PasswordHasher.Hash(authUserPassword) {
+		return newAuthenticationError("invalid password")
+	}
+
+	if !canEdit(u, authUser, usecase.RoleConfigs) {
+		return newAuthorizationError("cannot edit user")
+	}
+
+	if !validateEmail(newEmail) {
+		return newBadRequestError("new email is invalid")
+	}
+
+	u.Email = newEmail
+	return errors.Wrap(usecase.UserRepo.Update(u), "failed updating user")
 }
 
 type getUserAndAuthUser struct {
@@ -562,6 +682,24 @@ type RoleConfig struct {
 type Hasher interface {
 	//Hash a string
 	Hash(string) string
+}
+
+func canEdit(u User, authUser User, rcs []RoleConfig) bool {
+	canEdit := false
+
+	if u.UUID == authUser.UUID {
+		canEdit = true
+	} else {
+		for _, r := range authUser.Roles {
+			c := getRoleConfig(rcs, r)
+			if c.CanEditUser(u, authUser) {
+				canEdit = true
+				break
+			}
+		}
+	}
+
+	return canEdit
 }
 
 func getRoleConfig(rcs []RoleConfig, role string) RoleConfig {

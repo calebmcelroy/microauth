@@ -5,22 +5,18 @@ import (
 	"github.com/calebmcelroy/microauth/auth/mocks"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"testing"
 	"time"
 )
 
-func TestUserChangePassword_BadRequestErrorMissingUsername(t *testing.T) {
-	usecase := auth.UserChangePassword{}
+func TestUserChangeEmail_BadRequestErrorMissingUsername(t *testing.T) {
+	usecase := auth.UserChangeEmail{}
 
-	err := usecase.Execute("", "Password", "authToken", "authUserPassword")
+	err := usecase.Execute("", "NewEmail@test.com", "authToken", "authUserPassword")
 	assert.Equal(t, true, auth.IsBadRequestError(err))
 }
 
-func TestUserChangePassword_ReturnAuthenticationErrorInvalidToken(t *testing.T) {
-	passValidator := &mocks.Validator{}
-	passValidator.On("Validate", mock.Anything).Return(errors.New("test error"))
-
+func TestUserChangeEmail_ReturnAuthenticationErrorInvalidToken(t *testing.T) {
 	tokRepo := &mocks.TokenRepo{}
 	tokRepo.On("Get", "authToken").Return(auth.Token{}, nil)
 
@@ -28,16 +24,15 @@ func TestUserChangePassword_ReturnAuthenticationErrorInvalidToken(t *testing.T) 
 		TokenRepo: tokRepo,
 	}
 
-	usecase := auth.UserChangePassword{
-		PasswordValidator: passValidator,
+	usecase := auth.UserChangeEmail{
 		TokenAuthenticate: tokenAuth,
 	}
 
-	err := usecase.Execute("Username", "Password", "authToken", "authUserPassword")
+	err := usecase.Execute("Username", "NewEmail@test.com", "authToken", "authUserPassword")
 	assert.Equal(t, true, auth.IsAuthenticationError(err))
 }
 
-func TestUserChangePassword_AuthenticationErrorIfInvalidAuthUserPassword(t *testing.T) {
+func TestUserChangeEmail_AuthenticationErrorIfInvalidAuthUserPassword(t *testing.T) {
 	tokRepo := &mocks.TokenRepo{}
 
 	tok := auth.Token{
@@ -51,9 +46,6 @@ func TestUserChangePassword_AuthenticationErrorIfInvalidAuthUserPassword(t *test
 	tokenAuth := auth.TokenAuthenticate{
 		TokenRepo: tokRepo,
 	}
-
-	passValidator := &mocks.Validator{}
-	passValidator.On("Validate", mock.Anything).Return(nil)
 
 	userRepo := &mocks.UserRepo{}
 	user := auth.User{
@@ -70,19 +62,18 @@ func TestUserChangePassword_AuthenticationErrorIfInvalidAuthUserPassword(t *test
 	passHasher := &mocks.Hasher{}
 	passHasher.On("Hash", "authUserPassword").Return("invalidPass")
 
-	usecase := auth.UserChangePassword{
-		PasswordValidator: passValidator,
+	usecase := auth.UserChangeEmail{
 		PasswordHasher:    passHasher,
 		TokenAuthenticate: tokenAuth,
 		UserRepo:          userRepo,
 	}
 
-	err := usecase.Execute("Username", "Password", "authToken", "authUserPassword")
+	err := usecase.Execute("Username", "NewEmail@test.com", "authToken", "authUserPassword")
 
 	assert.Equal(t, true, auth.IsAuthenticationError(err))
 }
 
-func TestUserChangePassword_ReturnsAuthorizationErrorIfCantEditUser(t *testing.T) {
+func TestUserChangeEmail_ReturnsAuthorizationErrorIfCantEditUser(t *testing.T) {
 	tokRepo := &mocks.TokenRepo{}
 
 	tok := auth.Token{
@@ -96,9 +87,6 @@ func TestUserChangePassword_ReturnsAuthorizationErrorIfCantEditUser(t *testing.T
 	tokenAuth := auth.TokenAuthenticate{
 		TokenRepo: tokRepo,
 	}
-
-	passValidator := &mocks.Validator{}
-	passValidator.On("Validate", mock.Anything).Return(errors.New("test error"))
 
 	userRepo := &mocks.UserRepo{}
 	user := auth.User{
@@ -134,19 +122,18 @@ func TestUserChangePassword_ReturnsAuthorizationErrorIfCantEditUser(t *testing.T
 		},
 	}
 
-	usecase := auth.UserChangePassword{
-		PasswordValidator: passValidator,
+	usecase := auth.UserChangeEmail{
 		TokenAuthenticate: tokenAuth,
 		UserRepo:          userRepo,
 		PasswordHasher:    passHasher,
 		RoleConfigs:       roleConfigs,
 	}
 
-	err := usecase.Execute("Username", "Password", "authToken", "authUserPassword")
+	err := usecase.Execute("Username", "NewEmail@test.com", "authToken", "authUserPassword")
 	assert.Equal(t, true, auth.IsAuthorizationError(err))
 }
 
-func TestUserChangePassword_ReturnsBadRequestPasswordValidatorError(t *testing.T) {
+func TestUserChangeEmail_ReturnsBadRequestOnInvalidEmail(t *testing.T) {
 	tokRepo := &mocks.TokenRepo{}
 
 	tok := auth.Token{
@@ -160,9 +147,6 @@ func TestUserChangePassword_ReturnsBadRequestPasswordValidatorError(t *testing.T
 	tokenAuth := auth.TokenAuthenticate{
 		TokenRepo: tokRepo,
 	}
-
-	passValidator := &mocks.Validator{}
-	passValidator.On("Validate", mock.Anything).Return(errors.New("test error"))
 
 	userRepo := &mocks.UserRepo{}
 	user := auth.User{
@@ -179,114 +163,107 @@ func TestUserChangePassword_ReturnsBadRequestPasswordValidatorError(t *testing.T
 	passHasher := &mocks.Hasher{}
 	passHasher.On("Hash", "authUserPassword").Return("passHash")
 
-	usecase := auth.UserChangePassword{
-		PasswordValidator: passValidator,
-		TokenAuthenticate: tokenAuth,
-		UserRepo:          userRepo,
-		PasswordHasher:    passHasher,
-	}
-
-	err := usecase.Execute("Username", "Password", "authToken", "authUserPassword")
-	assert.Equal(t, true, auth.IsBadRequestError(err))
-	assert.Equal(t, "test error", errors.Cause(err).Error())
-}
-
-func TestUserChangePassword_ReturnsUserRepoUpdateError(t *testing.T) {
-	tokRepo := &mocks.TokenRepo{}
-
-	tok := auth.Token{
-		Token:      "authToken",
-		UserID:     "userID",
-		Expiration: time.Now().Add(time.Hour),
-	}
-
-	tokRepo.On("Get", "authToken").Return(tok, nil)
-
-	tokenAuth := auth.TokenAuthenticate{
-		TokenRepo: tokRepo,
-	}
-
-	passValidator := &mocks.Validator{}
-	passValidator.On("Validate", mock.Anything).Return(nil)
-
-	userRepo := &mocks.UserRepo{}
-	user := auth.User{
-		UUID:         "userID",
-		Email:        "test@test.com",
-		Username:     "Username",
-		Roles:        []string{"roleSlug"},
-		PasswordHash: "passHash",
-	}
-
-	userRepo.On("GetByUsername", "Username").Return(user, nil)
-	userRepo.On("Get", "userID").Return(user, nil)
-
-	passHasher := &mocks.Hasher{}
-	passHasher.On("Hash", "authUserPassword").Return("passHash")
-
-	passHasher.On("Hash", "Password").Return("newPassHash")
 	updatedUser := user
-	updatedUser.PasswordHash = "newPassHash"
-
-	userRepo.On("Update", updatedUser).Return(errors.New("test error"))
-
-	usecase := auth.UserChangePassword{
-		PasswordValidator: passValidator,
-		TokenAuthenticate: tokenAuth,
-		UserRepo:          userRepo,
-		PasswordHasher:    passHasher,
-	}
-
-	err := usecase.Execute("Username", "Password", "authToken", "authUserPassword")
-	assert.Equal(t, "test error", errors.Cause(err).Error())
-}
-
-func TestUserChangePassword_NilOnSuccess(t *testing.T) {
-	tokRepo := &mocks.TokenRepo{}
-
-	tok := auth.Token{
-		Token:      "authToken",
-		UserID:     "userID",
-		Expiration: time.Now().Add(time.Hour),
-	}
-
-	tokRepo.On("Get", "authToken").Return(tok, nil)
-
-	tokenAuth := auth.TokenAuthenticate{
-		TokenRepo: tokRepo,
-	}
-
-	passValidator := &mocks.Validator{}
-	passValidator.On("Validate", mock.Anything).Return(nil)
-
-	userRepo := &mocks.UserRepo{}
-	user := auth.User{
-		UUID:         "userID",
-		Email:        "test@test.com",
-		Username:     "Username",
-		Roles:        []string{"roleSlug"},
-		PasswordHash: "passHash",
-	}
-
-	userRepo.On("GetByUsername", "Username").Return(user, nil)
-	userRepo.On("Get", "userID").Return(user, nil)
-
-	passHasher := &mocks.Hasher{}
-	passHasher.On("Hash", "authUserPassword").Return("passHash")
-
-	passHasher.On("Hash", "Password").Return("newPassHash")
-	updatedUser := user
-	updatedUser.PasswordHash = "newPassHash"
+	updatedUser.Email = "NewEmail"
 
 	userRepo.On("Update", updatedUser).Return(nil)
 
-	usecase := auth.UserChangePassword{
-		PasswordValidator: passValidator,
+	usecase := auth.UserChangeEmail{
 		TokenAuthenticate: tokenAuth,
 		UserRepo:          userRepo,
 		PasswordHasher:    passHasher,
 	}
 
-	err := usecase.Execute("Username", "Password", "authToken", "authUserPassword")
+	err := usecase.Execute("Username", "NewEmail", "authToken", "authUserPassword")
+	assert.Equal(t, true, auth.IsBadRequestError(err))
+}
+
+func TestUserChangeEmail_ReturnsUserRepoUpdateError(t *testing.T) {
+	tokRepo := &mocks.TokenRepo{}
+
+	tok := auth.Token{
+		Token:      "authToken",
+		UserID:     "userID",
+		Expiration: time.Now().Add(time.Hour),
+	}
+
+	tokRepo.On("Get", "authToken").Return(tok, nil)
+
+	tokenAuth := auth.TokenAuthenticate{
+		TokenRepo: tokRepo,
+	}
+
+	userRepo := &mocks.UserRepo{}
+	user := auth.User{
+		UUID:         "userID",
+		Email:        "test@test.com",
+		Username:     "Username",
+		Roles:        []string{"roleSlug"},
+		PasswordHash: "passHash",
+	}
+
+	userRepo.On("GetByUsername", "Username").Return(user, nil)
+	userRepo.On("Get", "userID").Return(user, nil)
+
+	passHasher := &mocks.Hasher{}
+	passHasher.On("Hash", "authUserPassword").Return("passHash")
+
+	updatedUser := user
+	updatedUser.Email = "NewEmail@test.com"
+
+	userRepo.On("Update", updatedUser).Return(errors.New("test error"))
+
+	usecase := auth.UserChangeEmail{
+		TokenAuthenticate: tokenAuth,
+		UserRepo:          userRepo,
+		PasswordHasher:    passHasher,
+	}
+
+	err := usecase.Execute("Username", "NewEmail@test.com", "authToken", "authUserPassword")
+	assert.Equal(t, "test error", errors.Cause(err).Error())
+}
+
+func TestUserChangeEmail_NilOnSuccess(t *testing.T) {
+	tokRepo := &mocks.TokenRepo{}
+
+	tok := auth.Token{
+		Token:      "authToken",
+		UserID:     "userID",
+		Expiration: time.Now().Add(time.Hour),
+	}
+
+	tokRepo.On("Get", "authToken").Return(tok, nil)
+
+	tokenAuth := auth.TokenAuthenticate{
+		TokenRepo: tokRepo,
+	}
+
+	userRepo := &mocks.UserRepo{}
+	user := auth.User{
+		UUID:         "userID",
+		Email:        "test@test.com",
+		Username:     "Username",
+		Roles:        []string{"roleSlug"},
+		PasswordHash: "passHash",
+	}
+
+	userRepo.On("GetByUsername", "Username").Return(user, nil)
+	userRepo.On("Get", "userID").Return(user, nil)
+
+	passHasher := &mocks.Hasher{}
+	passHasher.On("Hash", "authUserPassword").Return("passHash")
+
+	updatedUser := user
+	updatedUser.Email = "NewEmail@test.com"
+
+	userRepo.On("Update", updatedUser).Return(nil)
+
+	usecase := auth.UserChangeEmail{
+		TokenAuthenticate: tokenAuth,
+		UserRepo:          userRepo,
+		PasswordHasher:    passHasher,
+	}
+
+	err := usecase.Execute("Username", "NewEmail@test.com", "authToken", "authUserPassword")
 	assert.Nil(t, err)
 }
