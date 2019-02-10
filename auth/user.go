@@ -145,7 +145,7 @@ func (a UserAuthenticate) Execute(usernameEmail string, password string) (userID
 	passMatch := u.PasswordHash == a.PasswordHasher.Hash(password)
 
 	if u.PasswordHash == "" || !passMatch {
-		return "", newAuthenticationError("invalid username/email or password")
+		return "", newAuthenticationError("invalid username/email and password")
 	}
 
 	return u.UUID, nil
@@ -349,7 +349,7 @@ type UserChangePassword struct {
 // Execute returns a nil error on success. Parameters username, newPassword, authToken, & authUserPassword are required.
 // Returns error implementing Authentication() when authentication failed
 // Returns error implementing Authorization() when authenticated user doesn't equal user being edited AND all the authenticated user's roles CanEditUser func return false.
-// Returns error implementing Authorization() when user doesn't exist. (prevents account enumeration)
+// Returns error implementing Authorization() when user doesn't exist.
 func (usecase *UserChangePassword) Execute(userUUID string, newPassword string, authToken string, authUserPassword string) error {
 	if userUUID == "" {
 		return newBadRequestError("user UUID is required")
@@ -623,7 +623,6 @@ func (usecase *getUserAndAuthUser) Execute(userUUID string, authToken string) (u
 	}
 
 	if u.UUID != userUUID {
-		// return AuthorizationError instead of BadRequest to it prevent account enumeration.
 		return User{}, User{}, newAuthorizationError("unauthorized to get user info")
 	}
 
