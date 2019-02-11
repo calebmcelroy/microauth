@@ -499,7 +499,13 @@ func (usecase *UserResetPassword) Execute(resetToken string, newPassword string)
 
 	err = usecase.UserRepo.Update(u)
 
-	return errors.Wrap(err, "user update failed")
+	if err != nil {
+		return errors.Wrap(err, "user update failed")
+	}
+
+	err = usecase.ResetTokenRepo.Delete(tok.UUID)
+
+	return errors.Wrap(err, "token delete failed")
 }
 
 // UserChangeUsername changes a user's username
@@ -667,11 +673,14 @@ func (tok *ResetToken) Valid() bool {
 
 // ResetTokenRepo is used to save reset token and retrieve reset token
 type ResetTokenRepo interface {
-	//Insert saves a resetToken
+	// Insert saves a resetToken
 	Insert(ResetToken) error
 
-	//Get retrieves resetToken by UUID, returns empty resetToken when not found
+	// Get retrieves resetToken by UUID, returns empty resetToken when not found
 	Get(UUID string) (ResetToken, error)
+
+	// Delete removes resetToken by UUID
+	Delete(UUID string) error
 }
 
 // RoleConfig is used to define a role, including it's name, slug, & capabilities

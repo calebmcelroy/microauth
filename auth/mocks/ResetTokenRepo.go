@@ -10,6 +10,20 @@ type ResetTokenRepo struct {
 	mock.Mock
 }
 
+// Delete provides a mock function with given fields: UUID
+func (_m *ResetTokenRepo) Delete(UUID string) error {
+	ret := _m.Called(UUID)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(string) error); ok {
+		r0 = rf(UUID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // Get provides a mock function with given fields: UUID
 func (_m *ResetTokenRepo) Get(UUID string) (auth.ResetToken, error) {
 	ret := _m.Called(UUID)
