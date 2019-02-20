@@ -6,7 +6,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"log"
 	"testing"
 	"time"
 )
@@ -45,8 +44,7 @@ func TestTokenCreate_InsertsToken(t *testing.T) {
 	userRepo.On("GetByUsername", "test").Return(user, nil)
 	tokenRepo.On("Insert", mock.Anything).Return(nil)
 
-	tok, err := usecase.Execute("test", "test", false)
-	log.Println(tok, err)
+	usecase.Execute("test", "test", false)
 
 	tokenRepo.AssertNumberOfCalls(t, "Insert", 1)
 }
