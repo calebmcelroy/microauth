@@ -695,3 +695,77 @@ func TestGrantCreate_VerifyCreatedGrant(t *testing.T) {
 
 	assert.Nil(t, err)
 }
+
+func TestGrantCreate_VerifyCreatedGrantWithoutExpiration(t *testing.T) {
+	c := auth.GrantConfig{
+		Slug:     "test",
+		Duration: 0,
+		Secure:   true,
+		Limit:    5,
+		CanCreateGrant: func(g auth.Grant, u auth.User, authUser auth.User) bool {
+			return true
+		},
+	}
+
+	u := &mocks.UserRepo{}
+	u.On("Get", "userUUID").Return(auth.User{
+		UUID: "userUUID",
+	}, nil)
+
+	tokRepo := &mocks.TokenRepo{}
+
+	tok := auth.Token{
+		Token:      "authToken",
+		UserID:     "userUUID2",
+		Expiration: time.Now().Add(time.Hour),
+	}
+
+	tokRepo.On("Get", "authToken").Return(tok, nil)
+
+	tokAuth := auth.TokenAuthenticate{
+		TokenRepo: tokRepo,
+	}
+
+	authUser := auth.User{
+		UUID:         "userUUID2",
+		Username:     "test",
+		Email:        "test@test.com",
+		PasswordHash: "passHash",
+	}
+
+	u.On("Get", "userUUID2").Return(authUser, nil)
+	u.On("GetByUsername", "test").Return(authUser, nil)
+
+	passHasher := &mocks.Hasher{}
+	passHasher.On("Hash", "password").Return("passHash")
+
+	userAuth := auth.UserAuthenticate{
+		UserRepo:       u,
+		PasswordHasher: passHasher,
+	}
+
+	grantRepo := &mocks.GrantRepo{}
+	grantRepo.On("Create", mock.MatchedBy(func(g auth.Grant) bool {
+		assert.Equal(t, true, g.Expires.IsZero())
+		return true
+	})).Return(nil)
+
+	usecase := auth.GrantCreate{
+		GrantConfigs: []auth.GrantConfig{c},
+		UserRepo:     u,
+		TokAuth:      tokAuth,
+		GrantRepo:    grantRepo,
+		UserAuth:     userAuth,
+	}
+
+	r := auth.GrantCreateRequest{
+		Type:      "test",
+		UserUUID:  "userUUID",
+		AuthToken: "authToken",
+		Password:  "password",
+	}
+
+	err := usecase.Execute(r)
+
+	assert.Nil(t, err)
+}

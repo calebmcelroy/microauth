@@ -15,6 +15,7 @@ type Grant struct {
 	Secure     bool
 	Uses       int
 	UseLimit   int
+	Version    int
 	CustomData map[string]interface{}
 }
 
@@ -41,6 +42,7 @@ type GrantConfig struct {
 }
 
 // Repo is the storage interface for Grant
+// The database implementation handles deleting grants once expired.
 type GrantRepo interface {
 	// Delete takes a UUID. Returns nil on success.
 	// Returns error implementing BadRequest() when grant invalid.
@@ -54,11 +56,19 @@ type GrantRepo interface {
 	// Otherwise returns a plain error implying a internal server error.
 	Create(Grant) error
 
+	// Get takes a valid Grant. Returns nil on success.
+	// Returns error implementing BadRequest() when grant invalid.
+	// Returns error implementing Temporary() when service is unavailable error.
+	// Otherwise returns a plain error implying a internal server error.
+	Get(UUID string) (Grant, error)
+
 	// Use takes a UUID. It adds a use to the grant and deletes grant once all used up.
+	// The version parameter is used to be prevent distributed race conditional. DB must support atomic operations.
+	// Returns error implementing BadRequest() upon grant version conflict.
 	// Returns nil on success.
 	// Returns error implementing Temporary() when service is unavailable error.
 	// Otherwise returns a plain error implying a internal server error.
-	Use(UUID string) error
+	Use(UUID string, version int) error
 }
 
 // GrantCreate is used to create a grant
@@ -132,11 +142,16 @@ func (usecase *GrantCreate) Execute(createReq GrantCreateRequest) error {
 		}
 	}
 
+	exp := time.Now().Add(c.Duration)
+	if c.Duration == 0 {
+		exp = time.Time{}
+	}
+
 	g := Grant{
 		UUID:       uuid.New().String(),
 		UserID:     user.UUID,
 		TypeSlug:   c.Slug,
-		Expires:    time.Now().Add(c.Duration),
+		Expires:    exp,
 		Secure:     c.Secure,
 		UseLimit:   c.Limit,
 		CustomData: createReq.CustomData,
@@ -149,6 +164,77 @@ func (usecase *GrantCreate) Execute(createReq GrantCreateRequest) error {
 	err = usecase.GrantRepo.Create(g)
 
 	return errors.Wrap(err, "failed to create grant")
+}
+
+// GrantInfo is used to get grant info
+type GrantInfo struct {
+	GrantRepo GrantRepo
+}
+
+// Execute accepts a grant uuid and returns Grant and nil error on success.
+// Returns error implementing BadRequest(), NotFound(), Authorization(), or otherwise general error
+func (usecase *GrantInfo) Execute(uuid string) (Grant, error) {
+	if uuid == "" {
+		return Grant{}, newBadRequestError("UUID is required")
+	}
+
+	g, err := usecase.GrantRepo.Get(uuid)
+
+	if err != nil {
+		return Grant{}, errors.Wrap(err, "failed to get grant")
+	}
+
+	if g.UUID == "" {
+		return Grant{}, newNotFoundError("grant not found")
+	}
+
+	if g.Expires.After(time.Now()) {
+		return Grant{}, newAuthorizationError("grant has expired")
+	}
+
+	if g.Uses >= g.UseLimit {
+		return Grant{}, newAuthorizationError("grant limit exceeded")
+	}
+
+	return g, nil
+}
+
+// GrantUse is used to increment grant uses
+type GrantUse struct {
+	GrantRepo GrantRepo
+}
+
+// Execute accepts a grant uuid and returns nil error on success.
+// Returns error implementing BadRequest(), Authorization(), or otherwise general error
+func (usecase *GrantUse) Execute(uuid string) error {
+	getGrant := GrantInfo{GrantRepo: usecase.GrantRepo}
+	g, err := getGrant.Execute(uuid)
+
+	if IsNotFoundError(err) {
+		return newAuthorizationError("grant not found")
+	}
+
+	if err != nil {
+		return err
+	}
+
+	err = usecase.GrantRepo.Use(uuid, g.Version)
+
+	return errors.Wrap(err, "failed to use grant")
+}
+
+// GrantDelete is used to delete grant
+type GrantDelete struct {
+	GrantRepo GrantRepo
+}
+
+// Execute accepts a grant uuid. Returns nil on success.
+// Returns error implementing BadRequest() when grant invalid.
+// Returns error implementing Temporary() when server error.
+// Otherwise returns a plain error implying a internal server error.
+func (usecase *GrantDelete) Execute(uuid string) error {
+	err := usecase.GrantRepo.Delete(uuid)
+	return errors.Wrap(err, "error deleting grant")
 }
 
 func getGrantConfigBySlug(typeSlug string, GrantConfigs []GrantConfig) GrantConfig {

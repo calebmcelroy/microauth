@@ -38,13 +38,34 @@ func (_m *GrantRepo) Delete(UUID string) error {
 	return r0
 }
 
-// Use provides a mock function with given fields: UUID
-func (_m *GrantRepo) Use(UUID string) error {
+// Get provides a mock function with given fields: UUID
+func (_m *GrantRepo) Get(UUID string) (auth.Grant, error) {
 	ret := _m.Called(UUID)
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(string) error); ok {
+	var r0 auth.Grant
+	if rf, ok := ret.Get(0).(func(string) auth.Grant); ok {
 		r0 = rf(UUID)
+	} else {
+		r0 = ret.Get(0).(auth.Grant)
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(string) error); ok {
+		r1 = rf(UUID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// Use provides a mock function with given fields: UUID, version
+func (_m *GrantRepo) Use(UUID string, version int) error {
+	ret := _m.Called(UUID, version)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(string, int) error); ok {
+		r0 = rf(UUID, version)
 	} else {
 		r0 = ret.Error(0)
 	}
