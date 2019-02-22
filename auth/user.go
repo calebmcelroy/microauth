@@ -340,7 +340,7 @@ func (usecase *UserRemoveRole) Execute(userUUID string, roleSlug string, authTok
 // UserChangePassword changes a user's password
 type UserChangePassword struct {
 	UserRepo          UserRepo
-	TokenAuthenticate TokenAuthenticate
+	GrantInfo         GrantInfo
 	RoleConfigs       []RoleConfig
 	PasswordValidator Validator
 	PasswordHasher    Hasher
@@ -350,25 +350,35 @@ type UserChangePassword struct {
 // Returns error implementing Authentication() when authentication failed
 // Returns error implementing Authorization() when authenticated user doesn't equal user being edited AND all the authenticated user's roles CanEditUser func return false.
 // Returns error implementing Authorization() when user doesn't exist.
-func (usecase *UserChangePassword) Execute(userUUID string, newPassword string, authToken string, authUserPassword string) error {
+func (usecase *UserChangePassword) Execute(userUUID string, newPassword string, secureGrant string) error {
 	if userUUID == "" {
 		return newBadRequestError("user UUID is required")
 	}
 
-	getUsers := getUserAndAuthUser{
-		UserRepo:          usecase.UserRepo,
-		TokenAuthenticate: usecase.TokenAuthenticate,
-		RoleConfigs:       usecase.RoleConfigs,
-	}
+	g, err := usecase.GrantInfo.Execute(secureGrant)
 
-	u, authUser, err := getUsers.Execute(userUUID, authToken)
+	if IsNotFoundError(err) {
+		return newAuthenticationError("grant not found")
+	}
 
 	if err != nil {
 		return err
 	}
 
-	if authUser.PasswordHash != usecase.PasswordHasher.Hash(authUserPassword) {
-		return newAuthenticationError("invalid password")
+	if g.Secure != true {
+		return newAuthorizationError("grant must be marked secure")
+	}
+
+	u, err := usecase.UserRepo.Get(userUUID)
+
+	if err != nil {
+		return errors.Wrap(err, "failed to get user")
+	}
+
+	authUser, err := usecase.UserRepo.Get(g.UserID)
+
+	if err != nil {
+		return errors.Wrap(err, "failed to get user")
 	}
 
 	if !canEdit(u, authUser, usecase.RoleConfigs) {
@@ -557,10 +567,10 @@ func (usecase *UserChangeUsername) Execute(userUUID string, newUsername string, 
 
 // UserChangeEmail changes a user's email
 type UserChangeEmail struct {
-	UserRepo          UserRepo
-	TokenAuthenticate TokenAuthenticate
-	RoleConfigs       []RoleConfig
-	PasswordHasher    Hasher
+	UserRepo       UserRepo
+	GrantInfo      GrantInfo
+	RoleConfigs    []RoleConfig
+	PasswordHasher Hasher
 }
 
 // Execute returns nil on success.
@@ -568,25 +578,35 @@ type UserChangeEmail struct {
 // Returns error implementing Authentication() when authToken or authUserPassword is invalid.
 // Returns error implementing Authorization() when authenticated user doesn't equal user being edited AND all the authenticated user's roles CanEditUser func return false.
 // Otherwise returns an internal server error.
-func (usecase *UserChangeEmail) Execute(userUUID string, newEmail string, authToken string, authUserPassword string) error {
+func (usecase *UserChangeEmail) Execute(userUUID string, newEmail string, secureGrant string) error {
 	if userUUID == "" {
 		return newBadRequestError("user UUID is required")
 	}
 
-	getUsers := getUserAndAuthUser{
-		UserRepo:          usecase.UserRepo,
-		TokenAuthenticate: usecase.TokenAuthenticate,
-		RoleConfigs:       usecase.RoleConfigs,
-	}
+	g, err := usecase.GrantInfo.Execute(secureGrant)
 
-	u, authUser, err := getUsers.Execute(userUUID, authToken)
+	if IsNotFoundError(err) {
+		return newAuthenticationError("grant not found")
+	}
 
 	if err != nil {
 		return err
 	}
 
-	if authUser.PasswordHash != usecase.PasswordHasher.Hash(authUserPassword) {
-		return newAuthenticationError("invalid password")
+	if g.Secure != true {
+		return newAuthorizationError("grant must be marked secure")
+	}
+
+	u, err := usecase.UserRepo.Get(userUUID)
+
+	if err != nil {
+		return errors.Wrap(err, "failed to get user")
+	}
+
+	authUser, err := usecase.UserRepo.Get(g.UserID)
+
+	if err != nil {
+		return errors.Wrap(err, "failed to get user")
 	}
 
 	if !canEdit(u, authUser, usecase.RoleConfigs) {

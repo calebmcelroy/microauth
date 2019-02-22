@@ -6,6 +6,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"log"
 	"testing"
 	"time"
 )
@@ -13,89 +14,70 @@ import (
 func TestUserChangePassword_BadRequestErrorMissingUsername(t *testing.T) {
 	usecase := auth.UserChangePassword{}
 
-	err := usecase.Execute("", "Password", "authToken", "authUserPassword")
+	err := usecase.Execute("", "Password", "secureGrant")
 	assert.Equal(t, true, auth.IsBadRequestError(err))
 }
 
-func TestUserChangePassword_ReturnAuthenticationErrorInvalidToken(t *testing.T) {
+func TestUserChangePassword_ReturnAuthenticationErrorInvalidGrant(t *testing.T) {
+	passValidator := &mocks.Validator{}
+	passValidator.On("Validate", mock.Anything).Return(errors.New("test error"))
+
+	grantRepo := &mocks.GrantRepo{}
+	g := auth.Grant{}
+	grantRepo.On("Get", "secureGrant").Return(g, nil)
+	grantInfo := auth.GrantInfo{GrantRepo: grantRepo}
+
+	usecase := auth.UserChangePassword{
+		PasswordValidator: passValidator,
+		GrantInfo:         grantInfo,
+	}
+
+	err := usecase.Execute("userID", "Password", "secureGrant")
+	assert.Equal(t, true, auth.IsAuthenticationError(err))
+}
+
+func TestUserChangePassword_ReturnAuthorizationErrorUnsecureGrant(t *testing.T) {
 	passValidator := &mocks.Validator{}
 	passValidator.On("Validate", mock.Anything).Return(errors.New("test error"))
 
 	tokRepo := &mocks.TokenRepo{}
 	tokRepo.On("Get", "authToken").Return(auth.Token{}, nil)
 
-	tokenAuth := auth.TokenAuthenticate{
-		TokenRepo: tokRepo,
+	grantRepo := &mocks.GrantRepo{}
+	g := auth.Grant{
+		UUID:     "secureGrant",
+		UserID:   "userID2",
+		TypeSlug: "test",
+		Expires:  time.Now().Add(time.Hour),
+		Secure:   false,
+		Uses:     3,
+		UseLimit: 4,
 	}
+	grantRepo.On("Get", "secureGrant").Return(g, nil)
+	grantInfo := auth.GrantInfo{GrantRepo: grantRepo}
 
 	usecase := auth.UserChangePassword{
 		PasswordValidator: passValidator,
-		TokenAuthenticate: tokenAuth,
+		GrantInfo:         grantInfo,
 	}
 
-	err := usecase.Execute("userID", "Password", "authToken", "authUserPassword")
-	assert.Equal(t, true, auth.IsAuthenticationError(err))
-}
-
-func TestUserChangePassword_AuthenticationErrorIfInvalidAuthUserPassword(t *testing.T) {
-	tokRepo := &mocks.TokenRepo{}
-
-	tok := auth.Token{
-		Token:      "authToken",
-		UserID:     "userID",
-		Expiration: time.Now().Add(time.Hour),
-	}
-
-	tokRepo.On("Get", "authToken").Return(tok, nil)
-
-	tokenAuth := auth.TokenAuthenticate{
-		TokenRepo: tokRepo,
-	}
-
-	passValidator := &mocks.Validator{}
-	passValidator.On("Validate", mock.Anything).Return(nil)
-
-	userRepo := &mocks.UserRepo{}
-	user := auth.User{
-		UUID:         "userID",
-		Email:        "test@test.com",
-		Username:     "Username",
-		Roles:        []string{"roleSlug"},
-		PasswordHash: "test",
-	}
-
-	userRepo.On("GetByUsername", "Username").Return(user, nil)
-	userRepo.On("Get", "userID").Return(user, nil)
-
-	passHasher := &mocks.Hasher{}
-	passHasher.On("Hash", "authUserPassword").Return("invalidPass")
-
-	usecase := auth.UserChangePassword{
-		PasswordValidator: passValidator,
-		PasswordHasher:    passHasher,
-		TokenAuthenticate: tokenAuth,
-		UserRepo:          userRepo,
-	}
-
-	err := usecase.Execute("userID", "Password", "authToken", "authUserPassword")
-
-	assert.Equal(t, true, auth.IsAuthenticationError(err))
+	err := usecase.Execute("userID", "Password", "secureGrant")
+	assert.Equal(t, true, auth.IsAuthorizationError(err))
 }
 
 func TestUserChangePassword_ReturnsAuthorizationErrorIfCantEditUser(t *testing.T) {
-	tokRepo := &mocks.TokenRepo{}
-
-	tok := auth.Token{
-		Token:      "authToken",
-		UserID:     "userID2",
-		Expiration: time.Now().Add(time.Hour),
+	grantRepo := &mocks.GrantRepo{}
+	g := auth.Grant{
+		UUID:     "secureGrant",
+		UserID:   "userID2",
+		TypeSlug: "test",
+		Expires:  time.Now().Add(time.Hour),
+		Secure:   true,
+		Uses:     3,
+		UseLimit: 4,
 	}
-
-	tokRepo.On("Get", "authToken").Return(tok, nil)
-
-	tokenAuth := auth.TokenAuthenticate{
-		TokenRepo: tokRepo,
-	}
+	grantRepo.On("Get", "secureGrant").Return(g, nil)
+	grantInfo := auth.GrantInfo{GrantRepo: grantRepo}
 
 	passValidator := &mocks.Validator{}
 	passValidator.On("Validate", mock.Anything).Return(errors.New("test error"))
@@ -121,7 +103,6 @@ func TestUserChangePassword_ReturnsAuthorizationErrorIfCantEditUser(t *testing.T
 	userRepo.On("Get", "userID2").Return(authUser, nil)
 
 	passHasher := &mocks.Hasher{}
-	passHasher.On("Hash", "authUserPassword").Return("passHash")
 
 	roleConfigs := []auth.RoleConfig{
 		{
@@ -136,30 +117,29 @@ func TestUserChangePassword_ReturnsAuthorizationErrorIfCantEditUser(t *testing.T
 
 	usecase := auth.UserChangePassword{
 		PasswordValidator: passValidator,
-		TokenAuthenticate: tokenAuth,
+		GrantInfo:         grantInfo,
 		UserRepo:          userRepo,
 		PasswordHasher:    passHasher,
 		RoleConfigs:       roleConfigs,
 	}
 
-	err := usecase.Execute("userID", "Password", "authToken", "authUserPassword")
+	err := usecase.Execute("userID", "Password", "secureGrant")
 	assert.Equal(t, true, auth.IsAuthorizationError(err))
 }
 
 func TestUserChangePassword_ReturnsBadRequestPasswordValidatorError(t *testing.T) {
-	tokRepo := &mocks.TokenRepo{}
-
-	tok := auth.Token{
-		Token:      "authToken",
-		UserID:     "userID",
-		Expiration: time.Now().Add(time.Hour),
+	grantRepo := &mocks.GrantRepo{}
+	g := auth.Grant{
+		UUID:     "secureGrant",
+		UserID:   "userID",
+		TypeSlug: "test",
+		Expires:  time.Now().Add(time.Hour),
+		Secure:   true,
+		Uses:     3,
+		UseLimit: 4,
 	}
-
-	tokRepo.On("Get", "authToken").Return(tok, nil)
-
-	tokenAuth := auth.TokenAuthenticate{
-		TokenRepo: tokRepo,
-	}
+	grantRepo.On("Get", "secureGrant").Return(g, nil)
+	grantInfo := auth.GrantInfo{GrantRepo: grantRepo}
 
 	passValidator := &mocks.Validator{}
 	passValidator.On("Validate", mock.Anything).Return(errors.New("test error"))
@@ -181,30 +161,30 @@ func TestUserChangePassword_ReturnsBadRequestPasswordValidatorError(t *testing.T
 
 	usecase := auth.UserChangePassword{
 		PasswordValidator: passValidator,
-		TokenAuthenticate: tokenAuth,
+		GrantInfo:         grantInfo,
 		UserRepo:          userRepo,
 		PasswordHasher:    passHasher,
 	}
 
-	err := usecase.Execute("userID", "Password", "authToken", "authUserPassword")
+	err := usecase.Execute("userID", "Password", "secureGrant")
+	log.Println(err)
 	assert.Equal(t, true, auth.IsBadRequestError(err))
 	assert.Equal(t, "test error", errors.Cause(err).Error())
 }
 
 func TestUserChangePassword_ReturnsUserRepoUpdateError(t *testing.T) {
-	tokRepo := &mocks.TokenRepo{}
-
-	tok := auth.Token{
-		Token:      "authToken",
-		UserID:     "userID",
-		Expiration: time.Now().Add(time.Hour),
+	grantRepo := &mocks.GrantRepo{}
+	g := auth.Grant{
+		UUID:     "secureGrant",
+		UserID:   "userID",
+		TypeSlug: "test",
+		Expires:  time.Now().Add(time.Hour),
+		Secure:   true,
+		Uses:     3,
+		UseLimit: 4,
 	}
-
-	tokRepo.On("Get", "authToken").Return(tok, nil)
-
-	tokenAuth := auth.TokenAuthenticate{
-		TokenRepo: tokRepo,
-	}
+	grantRepo.On("Get", "secureGrant").Return(g, nil)
+	grantInfo := auth.GrantInfo{GrantRepo: grantRepo}
 
 	passValidator := &mocks.Validator{}
 	passValidator.On("Validate", mock.Anything).Return(nil)
@@ -232,29 +212,28 @@ func TestUserChangePassword_ReturnsUserRepoUpdateError(t *testing.T) {
 
 	usecase := auth.UserChangePassword{
 		PasswordValidator: passValidator,
-		TokenAuthenticate: tokenAuth,
+		GrantInfo:         grantInfo,
 		UserRepo:          userRepo,
 		PasswordHasher:    passHasher,
 	}
 
-	err := usecase.Execute("userID", "Password", "authToken", "authUserPassword")
+	err := usecase.Execute("userID", "Password", "secureGrant")
 	assert.Equal(t, "test error", errors.Cause(err).Error())
 }
 
 func TestUserChangePassword_NilOnSuccess(t *testing.T) {
-	tokRepo := &mocks.TokenRepo{}
-
-	tok := auth.Token{
-		Token:      "authToken",
-		UserID:     "userID",
-		Expiration: time.Now().Add(time.Hour),
+	grantRepo := &mocks.GrantRepo{}
+	g := auth.Grant{
+		UUID:     "secureGrant",
+		UserID:   "userID",
+		TypeSlug: "test",
+		Expires:  time.Now().Add(time.Hour),
+		Secure:   true,
+		Uses:     3,
+		UseLimit: 4,
 	}
-
-	tokRepo.On("Get", "authToken").Return(tok, nil)
-
-	tokenAuth := auth.TokenAuthenticate{
-		TokenRepo: tokRepo,
-	}
+	grantRepo.On("Get", "secureGrant").Return(g, nil)
+	grantInfo := auth.GrantInfo{GrantRepo: grantRepo}
 
 	passValidator := &mocks.Validator{}
 	passValidator.On("Validate", mock.Anything).Return(nil)
@@ -282,11 +261,11 @@ func TestUserChangePassword_NilOnSuccess(t *testing.T) {
 
 	usecase := auth.UserChangePassword{
 		PasswordValidator: passValidator,
-		TokenAuthenticate: tokenAuth,
+		GrantInfo:         grantInfo,
 		UserRepo:          userRepo,
 		PasswordHasher:    passHasher,
 	}
 
-	err := usecase.Execute("userID", "Password", "authToken", "authUserPassword")
+	err := usecase.Execute("userID", "Password", "secureGrant")
 	assert.Nil(t, err)
 }

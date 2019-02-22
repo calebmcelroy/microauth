@@ -12,40 +12,37 @@ import (
 func TestUserChangeEmail_BadRequestErrorMissingUsername(t *testing.T) {
 	usecase := auth.UserChangeEmail{}
 
-	err := usecase.Execute("", "NewEmail@test.com", "authToken", "authUserPassword")
+	err := usecase.Execute("", "NewEmail@test.com", "secureGrant")
 	assert.Equal(t, true, auth.IsBadRequestError(err))
 }
 
 func TestUserChangeEmail_ReturnAuthenticationErrorInvalidToken(t *testing.T) {
-	tokRepo := &mocks.TokenRepo{}
-	tokRepo.On("Get", "authToken").Return(auth.Token{}, nil)
-
-	tokenAuth := auth.TokenAuthenticate{
-		TokenRepo: tokRepo,
-	}
+	grantRepo := &mocks.GrantRepo{}
+	g := auth.Grant{}
+	grantRepo.On("Get", "secureGrant").Return(g, nil)
+	grantInfo := auth.GrantInfo{GrantRepo: grantRepo}
 
 	usecase := auth.UserChangeEmail{
-		TokenAuthenticate: tokenAuth,
+		GrantInfo: grantInfo,
 	}
 
-	err := usecase.Execute("userID", "NewEmail@test.com", "authToken", "authUserPassword")
+	err := usecase.Execute("userID", "NewEmail@test.com", "secureGrant")
 	assert.Equal(t, true, auth.IsAuthenticationError(err))
 }
 
-func TestUserChangeEmail_AuthenticationErrorIfInvalidAuthUserPassword(t *testing.T) {
-	tokRepo := &mocks.TokenRepo{}
-
-	tok := auth.Token{
-		Token:      "authToken",
-		UserID:     "userID",
-		Expiration: time.Now().Add(time.Hour),
+func TestUserChangeEmail_ReturnAuthorizationErrorUnsecureGrant(t *testing.T) {
+	grantRepo := &mocks.GrantRepo{}
+	g := auth.Grant{
+		UUID:     "secureGrant",
+		UserID:   "userID",
+		TypeSlug: "test",
+		Expires:  time.Now().Add(time.Hour),
+		Secure:   false,
+		Uses:     3,
+		UseLimit: 4,
 	}
-
-	tokRepo.On("Get", "authToken").Return(tok, nil)
-
-	tokenAuth := auth.TokenAuthenticate{
-		TokenRepo: tokRepo,
-	}
+	grantRepo.On("Get", "secureGrant").Return(g, nil)
+	grantInfo := auth.GrantInfo{GrantRepo: grantRepo}
 
 	userRepo := &mocks.UserRepo{}
 	user := auth.User{
@@ -63,30 +60,29 @@ func TestUserChangeEmail_AuthenticationErrorIfInvalidAuthUserPassword(t *testing
 	passHasher.On("Hash", "authUserPassword").Return("invalidPass")
 
 	usecase := auth.UserChangeEmail{
-		PasswordHasher:    passHasher,
-		TokenAuthenticate: tokenAuth,
-		UserRepo:          userRepo,
+		PasswordHasher: passHasher,
+		GrantInfo:      grantInfo,
+		UserRepo:       userRepo,
 	}
 
-	err := usecase.Execute("userID", "NewEmail@test.com", "authToken", "authUserPassword")
+	err := usecase.Execute("userID", "NewEmail@test.com", "secureGrant")
 
-	assert.Equal(t, true, auth.IsAuthenticationError(err))
+	assert.Equal(t, true, auth.IsAuthorizationError(err))
 }
 
 func TestUserChangeEmail_ReturnsAuthorizationErrorIfCantEditUser(t *testing.T) {
-	tokRepo := &mocks.TokenRepo{}
-
-	tok := auth.Token{
-		Token:      "authToken",
-		UserID:     "userID2",
-		Expiration: time.Now().Add(time.Hour),
+	grantRepo := &mocks.GrantRepo{}
+	g := auth.Grant{
+		UUID:     "secureGrant",
+		UserID:   "userID2",
+		TypeSlug: "test",
+		Expires:  time.Now().Add(time.Hour),
+		Secure:   true,
+		Uses:     3,
+		UseLimit: 4,
 	}
-
-	tokRepo.On("Get", "authToken").Return(tok, nil)
-
-	tokenAuth := auth.TokenAuthenticate{
-		TokenRepo: tokRepo,
-	}
+	grantRepo.On("Get", "secureGrant").Return(g, nil)
+	grantInfo := auth.GrantInfo{GrantRepo: grantRepo}
 
 	userRepo := &mocks.UserRepo{}
 	user := auth.User{
@@ -123,30 +119,29 @@ func TestUserChangeEmail_ReturnsAuthorizationErrorIfCantEditUser(t *testing.T) {
 	}
 
 	usecase := auth.UserChangeEmail{
-		TokenAuthenticate: tokenAuth,
-		UserRepo:          userRepo,
-		PasswordHasher:    passHasher,
-		RoleConfigs:       roleConfigs,
+		GrantInfo:      grantInfo,
+		UserRepo:       userRepo,
+		PasswordHasher: passHasher,
+		RoleConfigs:    roleConfigs,
 	}
 
-	err := usecase.Execute("userID", "NewEmail@test.com", "authToken", "authUserPassword")
+	err := usecase.Execute("userID", "NewEmail@test.com", "secureGrant")
 	assert.Equal(t, true, auth.IsAuthorizationError(err))
 }
 
 func TestUserChangeEmail_ReturnsBadRequestOnInvalidEmail(t *testing.T) {
-	tokRepo := &mocks.TokenRepo{}
-
-	tok := auth.Token{
-		Token:      "authToken",
-		UserID:     "userID",
-		Expiration: time.Now().Add(time.Hour),
+	grantRepo := &mocks.GrantRepo{}
+	g := auth.Grant{
+		UUID:     "secureGrant",
+		UserID:   "userID",
+		TypeSlug: "test",
+		Expires:  time.Now().Add(time.Hour),
+		Secure:   true,
+		Uses:     3,
+		UseLimit: 4,
 	}
-
-	tokRepo.On("Get", "authToken").Return(tok, nil)
-
-	tokenAuth := auth.TokenAuthenticate{
-		TokenRepo: tokRepo,
-	}
+	grantRepo.On("Get", "secureGrant").Return(g, nil)
+	grantInfo := auth.GrantInfo{GrantRepo: grantRepo}
 
 	userRepo := &mocks.UserRepo{}
 	user := auth.User{
@@ -169,29 +164,28 @@ func TestUserChangeEmail_ReturnsBadRequestOnInvalidEmail(t *testing.T) {
 	userRepo.On("Update", updatedUser).Return(nil)
 
 	usecase := auth.UserChangeEmail{
-		TokenAuthenticate: tokenAuth,
-		UserRepo:          userRepo,
-		PasswordHasher:    passHasher,
+		GrantInfo:      grantInfo,
+		UserRepo:       userRepo,
+		PasswordHasher: passHasher,
 	}
 
-	err := usecase.Execute("userID", "NewEmail", "authToken", "authUserPassword")
+	err := usecase.Execute("userID", "NewEmail", "secureGrant")
 	assert.Equal(t, true, auth.IsBadRequestError(err))
 }
 
 func TestUserChangeEmail_ReturnsUserRepoUpdateError(t *testing.T) {
-	tokRepo := &mocks.TokenRepo{}
-
-	tok := auth.Token{
-		Token:      "authToken",
-		UserID:     "userID",
-		Expiration: time.Now().Add(time.Hour),
+	grantRepo := &mocks.GrantRepo{}
+	g := auth.Grant{
+		UUID:     "secureGrant",
+		UserID:   "userID",
+		TypeSlug: "test",
+		Expires:  time.Now().Add(time.Hour),
+		Secure:   true,
+		Uses:     3,
+		UseLimit: 4,
 	}
-
-	tokRepo.On("Get", "authToken").Return(tok, nil)
-
-	tokenAuth := auth.TokenAuthenticate{
-		TokenRepo: tokRepo,
-	}
+	grantRepo.On("Get", "secureGrant").Return(g, nil)
+	grantInfo := auth.GrantInfo{GrantRepo: grantRepo}
 
 	userRepo := &mocks.UserRepo{}
 	user := auth.User{
@@ -214,29 +208,28 @@ func TestUserChangeEmail_ReturnsUserRepoUpdateError(t *testing.T) {
 	userRepo.On("Update", updatedUser).Return(errors.New("test error"))
 
 	usecase := auth.UserChangeEmail{
-		TokenAuthenticate: tokenAuth,
-		UserRepo:          userRepo,
-		PasswordHasher:    passHasher,
+		GrantInfo:      grantInfo,
+		UserRepo:       userRepo,
+		PasswordHasher: passHasher,
 	}
 
-	err := usecase.Execute("userID", "NewEmail@test.com", "authToken", "authUserPassword")
+	err := usecase.Execute("userID", "NewEmail@test.com", "secureGrant")
 	assert.Equal(t, "test error", errors.Cause(err).Error())
 }
 
 func TestUserChangeEmail_NilOnSuccess(t *testing.T) {
-	tokRepo := &mocks.TokenRepo{}
-
-	tok := auth.Token{
-		Token:      "authToken",
-		UserID:     "userID",
-		Expiration: time.Now().Add(time.Hour),
+	grantRepo := &mocks.GrantRepo{}
+	g := auth.Grant{
+		UUID:     "secureGrant",
+		UserID:   "userID",
+		TypeSlug: "test",
+		Expires:  time.Now().Add(time.Hour),
+		Secure:   true,
+		Uses:     3,
+		UseLimit: 4,
 	}
-
-	tokRepo.On("Get", "authToken").Return(tok, nil)
-
-	tokenAuth := auth.TokenAuthenticate{
-		TokenRepo: tokRepo,
-	}
+	grantRepo.On("Get", "secureGrant").Return(g, nil)
+	grantInfo := auth.GrantInfo{GrantRepo: grantRepo}
 
 	userRepo := &mocks.UserRepo{}
 	user := auth.User{
@@ -259,11 +252,11 @@ func TestUserChangeEmail_NilOnSuccess(t *testing.T) {
 	userRepo.On("Update", updatedUser).Return(nil)
 
 	usecase := auth.UserChangeEmail{
-		TokenAuthenticate: tokenAuth,
-		UserRepo:          userRepo,
-		PasswordHasher:    passHasher,
+		GrantInfo:      grantInfo,
+		UserRepo:       userRepo,
+		PasswordHasher: passHasher,
 	}
 
-	err := usecase.Execute("userID", "NewEmail@test.com", "authToken", "authUserPassword")
+	err := usecase.Execute("userID", "NewEmail@test.com", "secureGrant")
 	assert.Nil(t, err)
 }

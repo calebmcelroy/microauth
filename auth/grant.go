@@ -171,7 +171,7 @@ type GrantInfo struct {
 	GrantRepo GrantRepo
 }
 
-// Execute accepts a grant uuid and returns Grant and nil error on success.
+// Execute accepts a grant uuid and returns valid Grant and nil error on success.
 // Returns error implementing BadRequest(), NotFound(), Authorization(), or otherwise general error
 func (usecase *GrantInfo) Execute(uuid string) (Grant, error) {
 	if uuid == "" {
@@ -188,7 +188,7 @@ func (usecase *GrantInfo) Execute(uuid string) (Grant, error) {
 		return Grant{}, newNotFoundError("grant not found")
 	}
 
-	if g.Expires.After(time.Now()) {
+	if g.Expires.Before(time.Now()) && !g.Expires.IsZero() {
 		return Grant{}, newAuthorizationError("grant has expired")
 	}
 
@@ -207,8 +207,8 @@ type GrantUse struct {
 // Execute accepts a grant uuid and returns nil error on success.
 // Returns error implementing BadRequest(), Authorization(), or otherwise general error
 func (usecase *GrantUse) Execute(uuid string) error {
-	getGrant := GrantInfo{GrantRepo: usecase.GrantRepo}
-	g, err := getGrant.Execute(uuid)
+	getGrantInfo := GrantInfo{GrantRepo: usecase.GrantRepo}
+	g, err := getGrantInfo.Execute(uuid)
 
 	if IsNotFoundError(err) {
 		return newAuthorizationError("grant not found")

@@ -74,7 +74,7 @@ func TestGrantInfo_AuthorizationErrorWhenGrantExpired(t *testing.T) {
 		UUID:     "uuid",
 		UserID:   "userUUID",
 		TypeSlug: "test",
-		Expires:  time.Now().Add(time.Hour),
+		Expires:  time.Now().Add(-time.Hour),
 		Secure:   true,
 		Uses:     3,
 		UseLimit: 4,
