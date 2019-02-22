@@ -89,6 +89,28 @@ func TestGrantInfo_AuthorizationErrorWhenGrantExpired(t *testing.T) {
 	assert.Equal(t, true, auth.IsAuthorizationError(err))
 }
 
+func TestGrantInfo_AuthorizationErrorWhenGrantUsed(t *testing.T) {
+	grantRepo := &mocks.GrantRepo{}
+
+	g := auth.Grant{
+		UUID:     "uuid",
+		UserID:   "userUUID",
+		TypeSlug: "test",
+		Expires:  time.Now().Add(time.Hour),
+		Secure:   true,
+		Uses:     4,
+		UseLimit: 4,
+	}
+
+	grantRepo.On("Get", "uuid").Return(g, nil)
+
+	usecase := auth.GrantInfo{GrantRepo: grantRepo}
+
+	_, err := usecase.Execute("uuid")
+
+	assert.Equal(t, true, auth.IsAuthorizationError(err))
+}
+
 func TestGrantInfo_NotAuthorizationErrorWhenGrantExpirationTimeIsZero(t *testing.T) {
 	grantRepo := &mocks.GrantRepo{}
 
