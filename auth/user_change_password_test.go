@@ -6,7 +6,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"log"
 	"testing"
 	"time"
 )
@@ -167,7 +166,6 @@ func TestUserChangePassword_ReturnsBadRequestPasswordValidatorError(t *testing.T
 	}
 
 	err := usecase.Execute("userID", "Password", "secureGrant")
-	log.Println(err)
 	assert.Equal(t, true, auth.IsBadRequestError(err))
 	assert.Equal(t, "test error", errors.Cause(err).Error())
 }

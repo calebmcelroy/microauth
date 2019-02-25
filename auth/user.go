@@ -1,8 +1,10 @@
 package auth
 
 import (
+	"crypto/rand"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
+	"image"
 	"regexp"
 	"time"
 )
@@ -33,10 +35,10 @@ type UserCreate struct {
 	PasswordValidator Validator
 
 	// RoleConfigs is used to verify authorization to create
-	RoleConfigs       []RoleConfig
-	TokenAuthenticate TokenAuthenticate
-	UserRepo          UserRepo
-	PasswordHasher    Hasher
+	RoleConfigs []RoleConfig
+	TokenAuthenticate
+	UserRepo
+	PasswordHasher Hasher
 }
 
 // Execute params user.Username, user.Email, user.Roles, & password are required. user.UUID is generated.
@@ -118,7 +120,7 @@ func canAuthUserCreateUser(rcs []RoleConfig, newUser User, authUser User) bool {
 
 // UserAuthenticate validates a user's credentials
 type UserAuthenticate struct {
-	UserRepo       UserRepo
+	UserRepo
 	PasswordHasher Hasher
 }
 
@@ -153,7 +155,7 @@ func (a UserAuthenticate) Execute(usernameEmail string, password string) (userID
 
 // UsernameExists checks if user exists
 type UsernameExists struct {
-	UserRepo UserRepo
+	UserRepo
 }
 
 // Execute returns true on success. Username is required.
@@ -177,7 +179,7 @@ func (usecase *UsernameExists) Execute(username string) (bool, error) {
 
 // EmailExists checks if user exists
 type UserEmailExists struct {
-	UserRepo UserRepo
+	UserRepo
 }
 
 // Execute returns true on success. Email is required.
@@ -201,9 +203,9 @@ func (usecase *UserEmailExists) Execute(email string) (bool, error) {
 
 // UserInfo gets a users info
 type UserInfo struct {
-	UserRepo          UserRepo
-	TokenAuthenticate TokenAuthenticate
-	RoleConfigs       []RoleConfig
+	UserRepo
+	TokenAuthenticate
+	RoleConfigs []RoleConfig
 }
 
 // Execute returns a User struct and nil error on success. The authToken parameter is required.
@@ -241,9 +243,9 @@ func (usecase *UserInfo) Execute(userUUID string, authToken string) (User, error
 
 // UserAssignRole assigns a new role to a user
 type UserAssignRole struct {
-	UserRepo          UserRepo
-	TokenAuthenticate TokenAuthenticate
-	RoleConfigs       []RoleConfig
+	UserRepo
+	TokenAuthenticate
+	RoleConfigs []RoleConfig
 }
 
 // Execute returns a nil error on success. Parameters username, roleSlug, & authToken are required.
@@ -289,9 +291,9 @@ func (usecase *UserAssignRole) Execute(userUUID string, roleSlug string, authTok
 
 // UserRemoveRole removes role from a user
 type UserRemoveRole struct {
-	UserRepo          UserRepo
-	TokenAuthenticate TokenAuthenticate
-	RoleConfigs       []RoleConfig
+	UserRepo
+	TokenAuthenticate
+	RoleConfigs []RoleConfig
 }
 
 // Execute returns a nil error on success. Parameters username, roleSlug, & authToken are required.
@@ -339,8 +341,8 @@ func (usecase *UserRemoveRole) Execute(userUUID string, roleSlug string, authTok
 
 // UserChangePassword changes a user's password
 type UserChangePassword struct {
-	UserRepo          UserRepo
-	GrantInfo         GrantInfo
+	UserRepo
+	GrantInfo
 	RoleConfigs       []RoleConfig
 	PasswordValidator Validator
 	PasswordHasher    Hasher
@@ -520,8 +522,8 @@ func (usecase *UserResetPassword) Execute(resetToken string, newPassword string)
 
 // UserChangeUsername changes a user's username
 type UserChangeUsername struct {
-	UserRepo          UserRepo
-	TokenAuthenticate TokenAuthenticate
+	UserRepo
+	TokenAuthenticate
 	RoleConfigs       []RoleConfig
 	UsernameValidator Validator
 }
@@ -567,8 +569,8 @@ func (usecase *UserChangeUsername) Execute(userUUID string, newUsername string, 
 
 // UserChangeEmail changes a user's email
 type UserChangeEmail struct {
-	UserRepo       UserRepo
-	GrantInfo      GrantInfo
+	UserRepo
+	GrantInfo
 	RoleConfigs    []RoleConfig
 	PasswordHasher Hasher
 }
@@ -622,9 +624,9 @@ func (usecase *UserChangeEmail) Execute(userUUID string, newEmail string, secure
 }
 
 type getUserAndAuthUser struct {
-	UserRepo          UserRepo
-	TokenAuthenticate TokenAuthenticate
-	RoleConfigs       []RoleConfig
+	UserRepo
+	TokenAuthenticate
+	RoleConfigs []RoleConfig
 }
 
 func (usecase *getUserAndAuthUser) Execute(userUUID string, authToken string) (user User, authenticatedUser User, error error) {
@@ -663,7 +665,7 @@ func (usecase *getUserAndAuthUser) Execute(userUUID string, authToken string) (u
 
 // UserRepo is used for storage and retrieval of user data.
 type UserRepo interface {
-	//Get gets a User by their UUID
+	//Get a User by their UUID
 	Get(UUID string) (user User, err error)
 
 	//GetByUsername gets a User by their username
@@ -775,4 +777,215 @@ var rxEmail = regexp.MustCompile("^[a-zA-Z0-9.!#$%&'*+\\/=?^_`{|}~-]+@[a-zA-Z0-9
 
 func validateEmail(email string) bool {
 	return rxEmail.MatchString(email)
+}
+
+// TOTP is used to generate and validate TOTP keys.
+type TOTP interface {
+	GenerateKey(issuer string, accountName string) (otpUrl string, error error)
+	Validate(code string, otpUrl string) (bool, error)
+}
+
+type OTPURL string
+
+// Generates a QR code with OTPURL.
+func (k *OTPURL) QR(width int, height int) (image.Image, error) {
+	// TODO: implement
+	return nil, nil
+}
+
+// UserOTPRepo handles persistence, retrieval, & activation of user OTP keys
+type UserOTPRepo interface {
+	Get(userUUID string) (otpURL string, error error)
+	Save(userUUID string, otpURL string) error
+	IsActivated(userUUID string) (bool, error)
+	Activate(userUUID string) error
+}
+
+// UserRecoveryCodeRepo handles persistence and usage of recovery codes
+type UserRecoveryCodeRepo interface {
+	// Set the recovery codes for a user. Set will overrides all current recovery codes.
+	Set(codes []string, userUUID string) error
+
+	// Use a recovery code for a user. Recovery code is one-time use, therefore it's deleted once used.
+	Use(code string, userUUID string) error
+}
+
+// UserGenerateTOTPToken is used to generate and save a TOTP token for a user.
+type UserGenerateTOTPToken struct {
+	TOTP
+	UserOTPRepo
+	UserRecoveryCodeRepo
+	UserRepo
+	TokenAuthenticate
+	RoleConfigs []RoleConfig
+	Issuer      string
+}
+
+// UserGenerateTOTPTokenRes is the response returned by UserGenerateTOTPToken.Execute.
+// OTPURL is the generated secret + options in url format, see details: https://github.com/google/google-authenticator/wiki/Key-Uri-Format.
+// RecoveryCodes are the codes that were generated and saved.
+type UserGenerateTOTPTokenRes struct {
+	OTPURL
+	RecoveryCodes []string
+}
+
+// Execute generates TOTP token returning UserGenerateTOTPTokenRes on success
+func (usecase *UserGenerateTOTPToken) Execute(userUUID string, authToken string) (UserGenerateTOTPTokenRes, error) {
+	res := UserGenerateTOTPTokenRes{}
+
+	if userUUID == "" {
+		return res, newBadRequestError("user UUID is required")
+	}
+
+	if authToken == "" {
+		return res, newBadRequestError("authentication token is required")
+	}
+
+	authUserID, err := usecase.TokenAuthenticate.Execute(authToken)
+	if err != nil {
+		return res, err
+	}
+
+	u, err := usecase.UserRepo.Get(userUUID)
+	if err != nil {
+		return res, err
+	}
+
+	authUser, err := usecase.UserRepo.Get(authUserID)
+	if err != nil {
+		return res, err
+	}
+
+	if !canEdit(u, authUser, usecase.RoleConfigs) {
+		return res, newAuthorizationError("unauthorized to generate TOTP token")
+	}
+
+	isActivated, err := usecase.UserOTPRepo.IsActivated(userUUID)
+	if err != nil {
+		return res, errors.Wrap(err, "failed determining if OTP activated")
+	}
+
+	if isActivated {
+		return res, newBadRequestError("user OTP is already activated")
+	}
+
+	otpURL, err := usecase.TOTP.GenerateKey(usecase.Issuer, u.Username)
+	if err != nil {
+		return res, errors.Wrap(err, "failed to generated TOTP key")
+	}
+
+	err = usecase.UserOTPRepo.Save(userUUID, otpURL)
+	if err != nil {
+		return res, errors.Wrap(err, "failed to save TOTP key")
+	}
+
+	codes, err := generateRecoveryCodes(16)
+	if err != nil {
+		return res, errors.Wrap(err, "failed generating recovery codes")
+	}
+
+	err = usecase.UserRecoveryCodeRepo.Set(codes, userUUID)
+	if err != nil {
+		return res, errors.Wrap(err, "failed to save recovery codes")
+	}
+
+	res.OTPURL = OTPURL(otpURL)
+	res.RecoveryCodes = codes
+
+	return res, nil
+}
+
+// TODO: write comments
+
+type UserActivateTOTP struct {
+	TOTP
+	UserOTPRepo
+	UserRecoveryCodeRepo
+	UserRepo
+}
+
+type UserActivateTOTPReq struct {
+	UserUUID    string
+	SecureGrant string
+	TOTPCode    string
+}
+
+func (usecase *UserActivateTOTP) Execute(req UserActivateTOTPReq) error {
+	// TODO: implement
+	return nil
+}
+
+type UserDeactivateTOTP struct {
+	UserRecoveryCodeRepo
+	UserRepo
+	GrantRepo
+}
+
+type UserDeactivateTOTPReq struct {
+	UserUUID    string
+	SecureGrant string
+}
+
+func (usecase *UserDeactivateTOTP) Execute(req UserDeactivateTOTP) error {
+	// TODO: implement
+	return nil
+}
+
+type UserNewRecoveryCodes struct {
+	UserRecoveryCodeRepo
+	UserRepo
+	GrantRepo
+}
+
+type UserNewRecoveryCodesReq struct {
+	UserUUID    string
+	SecureGrant string
+}
+
+func (usecase *UserNewRecoveryCodes) Execute(req UserNewRecoveryCodesReq) ([]string, error) {
+	// TODO: implement
+	return []string{}, nil
+}
+
+func generateRecoveryCodes(n int) ([]string, error) {
+	codes := make([]string, n)
+
+	for i := 0; i < n; i++ {
+
+		l := 10
+		code, err := generateRandomString(l)
+
+		code = code[0:l/2] + "-" + code[l/2:]
+
+		if err != nil {
+			return []string{}, err
+		}
+
+		codes[i] = code
+	}
+
+	return codes, nil
+}
+
+func generateRandomString(n int) (string, error) {
+	const letters = "23456789ABCDEFGHIJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz"
+	bytes, err := generateRandomBytes(n)
+	if err != nil {
+		return "", err
+	}
+	for i, b := range bytes {
+		bytes[i] = letters[b%byte(len(letters))]
+	}
+	return string(bytes), nil
+}
+
+func generateRandomBytes(n int) ([]byte, error) {
+	b := make([]byte, n)
+	_, err := rand.Read(b)
+	// Note that err == nil only if we read len(b) bytes.
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
 }
